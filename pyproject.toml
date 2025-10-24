@@ -24,6 +24,10 @@ dev = [
     "httpx",
 ]
 
+[tool.uv]
+# other uv-specific settings (no python version key here)
+index-url = "https://pypi.org/simple"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["custom_components*"]
