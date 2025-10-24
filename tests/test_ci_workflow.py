@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import tomllib
+
 WORKFLOW_PATH = Path('.github/workflows/ci.yml')
-REQUIREMENTS_PATH = Path('requirements-dev.txt')
+PYPROJECT_PATH = Path('pyproject.toml')
 
 
 def test_ci_workflow_exists_and_runs_linters_and_tests():
@@ -18,7 +20,8 @@ def test_ci_workflow_exists_and_runs_linters_and_tests():
         'actions/upload-artifact',
         'coverage',
         'pytest-homeassistant-custom-component',
-        'pip install -r requirements-dev.txt',
+        'pyproject.toml',
+        'pip install .[dev]',
     ]
 
     missing = [snippet for snippet in expected_snippets if snippet not in content]
@@ -27,10 +30,13 @@ def test_ci_workflow_exists_and_runs_linters_and_tests():
     assert 'pip install -e .' not in content, "Editable install should not be required in CI"
 
 
-def test_dev_requirements_list_ci_dependencies():
-    assert REQUIREMENTS_PATH.exists(), "Expected dev requirements file for CI dependencies"
+def test_pyproject_lists_ci_dependencies():
+    assert PYPROJECT_PATH.exists(), "Expected pyproject.toml to define project metadata"
 
-    content = REQUIREMENTS_PATH.read_text().strip().splitlines()
+    content = tomllib.loads(PYPROJECT_PATH.read_text())
+    optional_dependencies = content.get('project', {}).get('optional-dependencies', {})
+    dev_dependencies = optional_dependencies.get('dev', [])
+
     expected_packages = {'ruff', 'pytest', 'pytest-cov'}
-    missing = sorted(pkg for pkg in expected_packages if not any(pkg in line for line in content))
-    assert not missing, f"Dev requirements missing packages: {missing}"
+    missing = sorted(pkg for pkg in expected_packages if not any(pkg in dep for dep in dev_dependencies))
+    assert not missing, f"Dev extra missing packages: {missing}"
