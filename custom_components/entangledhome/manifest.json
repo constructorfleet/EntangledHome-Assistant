@@ -1,0 +1,11 @@
+{
+  "domain": "entangledhome",
+  "name": "EntangledHome - Assistant",
+  "version": "0.1.0",
+  "documentation": "https://example.com",
+  "integration_type": "helper",
+  "config_flow": true,
+  "requirements": [],
+  "codeowners": ["@constructorfleet"],
+  "iot_class": "cloud_polling"
+}
