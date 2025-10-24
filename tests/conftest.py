@@ -4,11 +4,18 @@
 # from __future__ import annotations
 
 # from collections.abc import Awaitable, Callable
+import pytest
+
+
+@pytest.fixture
+def enable_custom_integrations():
+    """Minimal stub to satisfy pytest configuration when HA plugin isn't installed."""
+
+    yield
+
 # from datetime import timezone as dt_timezone
 # from typing import Any
 # from unittest.mock import AsyncMock, Mock, patch
-
-# import pytest
 # from homeassistant.helpers import area_registry as ar
 # from homeassistant.helpers import entity_registry as er
 # from pytest_homeassistant_custom_component.common import MockConfigEntry
