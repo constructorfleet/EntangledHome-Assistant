@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 
 def test_build_catalog_payload_includes_metadata() -> None:
     """Coordinator should include friendly names, aliases, capabilities, and Plex metadata."""
@@ -90,3 +91,68 @@ def test_serialize_catalog_for_qdrant_validates_models() -> None:
                 "plex_media": [],
             }
         )
+
+
+def test_coordinator_invokes_exporter_when_sync_enabled() -> None:
+    """Coordinator should build an exporter and trigger a run when sync is enabled."""
+
+    from datetime import timedelta
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, patch
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from custom_components.entangledhome.const import (
+        OPT_ENABLE_CATALOG_SYNC,
+        OPT_ENABLE_PLEX_SYNC,
+        OPT_REFRESH_INTERVAL_MINUTES,
+    )
+
+    hass = HomeAssistant()
+    options = {
+        OPT_ENABLE_CATALOG_SYNC: True,
+        OPT_ENABLE_PLEX_SYNC: False,
+        OPT_REFRESH_INTERVAL_MINUTES: 12,
+    }
+    entry = SimpleNamespace(options=options)
+
+    with patch(
+        "custom_components.entangledhome.coordinator.CatalogExporter",
+        create=True,
+    ) as exporter_cls:
+        exporter = exporter_cls.return_value
+        exporter.run_once = AsyncMock(return_value=None)
+
+        coordinator = EntangledHomeCoordinator(hass, entry)
+        assert coordinator.update_interval == timedelta(minutes=12)
+
+        asyncio.run(coordinator._async_update_data())
+
+    exporter_cls.assert_called_once()
+    kwargs = exporter_cls.call_args.kwargs
+    assert kwargs["enable_plex_sync"] is False
+    exporter.run_once.assert_awaited_once()
+
+
+def test_coordinator_skips_export_when_sync_disabled() -> None:
+    """No exporter should be constructed when sync is disabled."""
+
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from custom_components.entangledhome.const import OPT_ENABLE_CATALOG_SYNC
+
+    hass = HomeAssistant()
+    entry = SimpleNamespace(options={OPT_ENABLE_CATALOG_SYNC: False})
+
+    with patch(
+        "custom_components.entangledhome.coordinator.CatalogExporter", create=True
+    ) as exporter:
+        coordinator = EntangledHomeCoordinator(hass, entry)
+        asyncio.run(coordinator._async_update_data())
+
+    exporter.assert_not_called()

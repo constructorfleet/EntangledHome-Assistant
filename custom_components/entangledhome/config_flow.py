@@ -16,9 +16,13 @@ from .const import (
     CONF_QDRANT_HOST,
     DEFAULT_CATALOG_SYNC,
     DEFAULT_CONFIDENCE_GATE,
+    DEFAULT_PLEX_SYNC,
+    DEFAULT_REFRESH_INTERVAL_MINUTES,
     DOMAIN,
     OPT_ENABLE_CATALOG_SYNC,
     OPT_ENABLE_CONFIDENCE_GATE,
+    OPT_ENABLE_PLEX_SYNC,
+    OPT_REFRESH_INTERVAL_MINUTES,
     TITLE,
 )
 
@@ -31,6 +35,14 @@ USER_SCHEMA = vol.Schema(
         vol.Required(
             OPT_ENABLE_CONFIDENCE_GATE,
             default=DEFAULT_CONFIDENCE_GATE,
+        ): vol.Boolean(),
+        vol.Required(
+            OPT_REFRESH_INTERVAL_MINUTES,
+            default=DEFAULT_REFRESH_INTERVAL_MINUTES,
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+        vol.Required(
+            OPT_ENABLE_PLEX_SYNC,
+            default=DEFAULT_PLEX_SYNC,
         ): vol.Boolean(),
     }
 )
@@ -54,6 +66,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         options = {
             OPT_ENABLE_CATALOG_SYNC: user_input[OPT_ENABLE_CATALOG_SYNC],
             OPT_ENABLE_CONFIDENCE_GATE: user_input[OPT_ENABLE_CONFIDENCE_GATE],
+            OPT_REFRESH_INTERVAL_MINUTES: user_input[OPT_REFRESH_INTERVAL_MINUTES],
+            OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
         }
 
         return self.async_create_entry(title=TITLE, data=data, options=options)
@@ -80,19 +94,38 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         OPT_ENABLE_CATALOG_SYNC,
-                        default=self._current_option(
+                        default=self._bool_option(
                             OPT_ENABLE_CATALOG_SYNC, DEFAULT_CATALOG_SYNC
                         ),
                     ): vol.Boolean(),
                     vol.Required(
                         OPT_ENABLE_CONFIDENCE_GATE,
-                        default=self._current_option(
+                        default=self._bool_option(
                             OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE
+                        ),
+                    ): vol.Boolean(),
+                    vol.Required(
+                        OPT_REFRESH_INTERVAL_MINUTES,
+                        default=self._int_option(
+                            OPT_REFRESH_INTERVAL_MINUTES,
+                            DEFAULT_REFRESH_INTERVAL_MINUTES,
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+                    vol.Required(
+                        OPT_ENABLE_PLEX_SYNC,
+                        default=self._bool_option(
+                            OPT_ENABLE_PLEX_SYNC, DEFAULT_PLEX_SYNC
                         ),
                     ): vol.Boolean(),
                 }
             ),
         )
 
-    def _current_option(self, key: str, default: bool) -> bool:
-        return bool(self._config_entry.options.get(key, default))
+    def _current_option(self, key: str, default: object) -> object:
+        return self._config_entry.options.get(key, default)
+
+    def _bool_option(self, key: str, default: bool) -> bool:
+        return bool(self._current_option(key, default))
+
+    def _int_option(self, key: str, default: int) -> int:
+        return int(self._current_option(key, default))

@@ -10,9 +10,13 @@ from homeassistant.core import HomeAssistant
 from .const import (
     DEFAULT_CATALOG_SYNC,
     DEFAULT_CONFIDENCE_GATE,
+    DEFAULT_PLEX_SYNC,
+    DEFAULT_REFRESH_INTERVAL_MINUTES,
     DOMAIN,
     OPT_ENABLE_CATALOG_SYNC,
     OPT_ENABLE_CONFIDENCE_GATE,
+    OPT_ENABLE_PLEX_SYNC,
+    OPT_REFRESH_INTERVAL_MINUTES,
 )
 from .coordinator import EntangledHomeCoordinator
 
@@ -54,12 +58,15 @@ def _ensure_default_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     options: dict[str, Any] = dict(entry.options)
     updated = False
 
-    if OPT_ENABLE_CATALOG_SYNC not in options:
-        options[OPT_ENABLE_CATALOG_SYNC] = DEFAULT_CATALOG_SYNC
-        updated = True
-    if OPT_ENABLE_CONFIDENCE_GATE not in options:
-        options[OPT_ENABLE_CONFIDENCE_GATE] = DEFAULT_CONFIDENCE_GATE
-        updated = True
+    for option_key, default_value in (
+        (OPT_ENABLE_CATALOG_SYNC, DEFAULT_CATALOG_SYNC),
+        (OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE),
+        (OPT_REFRESH_INTERVAL_MINUTES, DEFAULT_REFRESH_INTERVAL_MINUTES),
+        (OPT_ENABLE_PLEX_SYNC, DEFAULT_PLEX_SYNC),
+    ):
+        if option_key not in options:
+            options[option_key] = default_value
+            updated = True
 
     if updated:
         hass.config_entries.async_update_entry(entry, options=options)

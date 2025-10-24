@@ -19,3 +19,9 @@ class HomeAssistant:
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
         self.config_entries = _ConfigEntriesManager()
+
+
+def callback(func):  # type: ignore[override]
+    """Return the decorated function unchanged (HA-style callback decorator)."""
+
+    return func
