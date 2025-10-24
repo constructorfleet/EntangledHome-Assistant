@@ -14,13 +14,8 @@ dependencies = [
     "pydantic>=2.12.3",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["custom_components*"]
-
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
-    "pytest-homeassistant-custom-component>=0.2.1",
     "ruff",
     "pytest",
     "pytest-cov",
@@ -28,4 +23,13 @@ dev = [
     "fastapi",
     "uvicorn[standard]",
     "httpx",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["custom_components*"]
+
+[dependency-groups]
+dev = [
+    "pytest-homeassistant-custom-component>=0.2.1",
 ]
