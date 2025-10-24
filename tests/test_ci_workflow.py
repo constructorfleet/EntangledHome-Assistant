@@ -14,7 +14,7 @@ def test_ci_workflow_exists_and_runs_linters_and_tests():
     content = WORKFLOW_PATH.read_text()
 
     expected_snippets = [
-        "python-version: '3.12'",
+        "python-version: '3.13'",
         'ruff check',
         'pytest',
         'adapter-service',
@@ -50,6 +50,9 @@ def test_pyproject_lists_dev_extra_dependencies():
     missing = sorted(pkg for pkg in expected_packages if not any(pkg in dep for dep in dev_dependencies))
     assert not missing, f"Dev extra missing packages: {missing}"
 
+    uv_config = content.get('tool', {}).get('uv', {})
+    assert uv_config.get('python') == '3.13', "Expected [tool.uv] python version to be 3.13"
+
 
 def test_setup_env_script_creates_virtualenv_and_installs_dev_extras():
     assert SETUP_SCRIPT_PATH.exists(), "Expected scripts/setup_env.sh to exist for environment setup"
@@ -58,7 +61,7 @@ def test_setup_env_script_creates_virtualenv_and_installs_dev_extras():
 
     expected_snippets = [
         '#!/usr/bin/env bash',
-        'python -m venv',
+        'python3.13 -m venv',
         'source',
         'pip install --upgrade pip',
         "pip install -e '.[dev]'",

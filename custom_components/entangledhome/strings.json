@@ -1,0 +1,30 @@
+{
+  "title": "EntangledHome - Assistant",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Adapter and Qdrant",
+        "description": "Configure the adapter endpoint and Qdrant access.",
+        "data": {
+          "adapter_url": "Adapter URL",
+          "qdrant_host": "Qdrant host",
+          "qdrant_api_key": "Qdrant API key",
+          "enable_catalog_sync": "Enable catalog sync",
+          "enable_confidence_gate": "Enable confidence gate"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EntangledHome options",
+        "description": "Toggle runtime behaviors.",
+        "data": {
+          "enable_catalog_sync": "Enable catalog sync",
+          "enable_confidence_gate": "Enable confidence gate"
+        }
+      }
+    }
+  }
+}
