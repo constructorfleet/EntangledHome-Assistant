@@ -906,6 +906,11 @@ version = "5.5"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/38/df/d5e67851e83948def768d7fb1a0fd373665b20f56ff63ed220c6cd16cb11/coverage-5.5.tar.gz", hash = "sha256:ebe78fe9a0e874362175b02371bdfbee64d8edc42a044253ddf4ee7d3c15212c", size = 691258, upload-time = "2021-02-28T20:13:23.11Z" }
 
+[package.optional-dependencies]
+toml = [
+    { name = "toml" },
+]
+
 [[package]]
 name = "cronsim"
 version = "2.6"
@@ -1046,6 +1051,10 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "coverage", extra = ["toml"] },
+    { name = "pluggy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "pytest-homeassistant-custom-component" },
 ]
 
@@ -1065,7 +1074,13 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-homeassistant-custom-component", specifier = ">=0.2.1" }]
+dev = [
+    { name = "coverage", extras = ["toml"], specifier = ">=5.5" },
+    { name = "pluggy", specifier = ">=0.13.1" },
+    { name = "pytest", specifier = ">=6.2.2" },
+    { name = "pytest-cov", specifier = ">=2.10.1" },
+    { name = "pytest-homeassistant-custom-component", specifier = ">=0.2.1" },
+]
 
 [[package]]
 name = "envs"
