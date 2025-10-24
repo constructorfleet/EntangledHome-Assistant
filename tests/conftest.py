@@ -1,3 +1,4 @@
+# PYTEST_DONT_REWRITE
 """Shared pytest fixtures for EntangledHome integration tests."""
 
 from __future__ import annotations
