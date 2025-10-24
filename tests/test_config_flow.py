@@ -7,13 +7,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from homeassistant import config_entries, data_entry_flow
+TEST_FILE_PATH = Path(__file__)
+REPO_ROOT = TEST_FILE_PATH.resolve().parents[1]
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(REPO_ROOT))
 
 DOMAIN = "entangledhome"
-STRINGS_PATH = Path("custom_components/entangledhome/strings.json")
-TRANSLATIONS_EN_PATH = Path("custom_components/entangledhome/translations/en.json")
+STRINGS_PATH = REPO_ROOT / "custom_components/entangledhome/strings.json"
+TRANSLATIONS_EN_PATH = REPO_ROOT / "custom_components/entangledhome/translations/en.json"
 
 
 @pytest.mark.asyncio
@@ -122,6 +123,13 @@ def test_strings_and_translations_contain_expected_content():
         '"adapter_url"',
     ]:
         assert snippet in translations_content, f"en.json missing {snippet}"
+
+
+def test_config_flow_tests_avoid_direct_homeassistant_imports():
+    """Guard against unnecessary homeassistant dependencies in tests."""
+    content = TEST_FILE_PATH.read_text(encoding="utf-8")
+    needle = "from " + "homeassistant"
+    assert needle not in content, "Tests should not import homeassistant directly"
 
 
 def _get_flow_handler(hass):
