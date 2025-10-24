@@ -14,4 +14,8 @@ dev = [
     "ruff",
     "pytest",
     "pytest-cov",
+    "pytest-homeassistant-custom-component",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
 ]
