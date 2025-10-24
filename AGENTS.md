@@ -7,12 +7,12 @@
 ## Repository layout
 
 ```
-cf_home_commands/
+entangledhome_assistant/
 ├─ .github/
 │  └─ workflows/
 │     └─ release.yml
 ├─ custom_components/
-│  └─ cf_home_commands/
+│  └─ entangledhome/
 │     ├─ __init__.py
 │     ├─ manifest.json
 │     ├─ const.py
@@ -43,11 +43,11 @@ cf_home_commands/
 ### `hacs.json`
 ```json
 {
-  "name": "ConstructorFleet Home Commands",
+  "name": "EntangledHome - Assistant",
   "content_in_root": false,
   "filename": "",
   "render_readme": true,
-  "domains": ["cf_home_commands"],
+  "domains": ["entangledhome"],
   "country": ["US"],
   "hide_default_branch": false
 }
@@ -56,7 +56,7 @@ cf_home_commands/
 ### `pyproject.toml` (optional typing and dev tools)
 ```toml
 [project]
-name = "cf_home_commands"
+name = "entangledhome"
 version = "0.1.0"
 description = "Home Assistant custom component: prompt-adapter + Qdrant RAG for home commands"
 requires-python = ">=3.12"
@@ -85,17 +85,18 @@ jobs:
 
 ### `LICENSE`
 ```text
-MIT License
+Business Source License 1.1
 
-Copyright (c) 2025 ConstructorFleet
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-... (standard MIT text) ...
+Licensor: ConstructorFleet L.L.C
+Licensed Work: Eddie (the "Licensed Work")
+Change Date: 2029-01-01
+Change License: Apache License, Version 2.0
+... (standard BSL text) ...
 ```
 
 ### `README.md`
 ```md
-# ConstructorFleet Home Commands (cf_home_commands)
+# EntangledHome - Assistant (entangledhome)
 
 HACS‑installable custom component that:
 - Registers a catch‑all intent to capture free‑form voice/text commands
@@ -112,12 +113,12 @@ HACS‑installable custom component that:
 
 ## Installation (HACS)
 1. HACS → Integrations → ⋯ → **Custom repositories** → paste this repo URL, category **Integration**.
-2. Install **ConstructorFleet Home Commands**.
+2. Install **EntangledHome - Assistant**.
 3. Restart Home Assistant.
 4. Add configuration in `configuration.yaml` (or UI when config_flow is added):
 
 ```yaml
-cf_home_commands:
+entangledhome:
   adapter_url: "http://adapter:8080/interpret"  # your prompt adapter endpoint
   qdrant:
     host: qdrant
@@ -131,10 +132,10 @@ cf_home_commands:
 
 ## Usage
 - Enable **Assist** or Conversation.
-- Say anything. If no native sentence matches, the `CFInterpretCommand` intent captures it and calls your adapter. High‑confidence outputs execute; low confidence returns a gentle refusal.
+- Say anything. If no native sentence matches, the `EHInterpretCommand` intent captures it and calls your adapter. High‑confidence outputs execute; low confidence returns a gentle refusal.
 
 ## Development
-- Drop in a fake adapter at `custom_components/cf_home_commands/mock_adapter.py` for offline testing.
+- Drop in a fake adapter at `custom_components/entangledhome/mock_adapter.py` for offline testing.
 - Unit tests left as an exercise.
 ```
 
@@ -142,11 +143,11 @@ cf_home_commands:
 
 ## Component files
 
-### `custom_components/cf_home_commands/manifest.json`
+### `custom_components/entangledhome/manifest.json`
 ```json
 {
-  "domain": "cf_home_commands",
-  "name": "ConstructorFleet Home Commands",
+  "domain": "entangledhome",
+  "name": "EntangledHome - Assistant",
   "version": "0.1.0",
   "after_dependencies": ["conversation"],
   "requirements": [
@@ -157,11 +158,11 @@ cf_home_commands:
 }
 ```
 
-### `custom_components/cf_home_commands/const.py`
+### `custom_components/entangledhome/const.py`
 ```python
 from __future__ import annotations
 
-DOMAIN = "cf_home_commands"
+DOMAIN = "entangledhome"
 CONF_ADAPTER_URL = "adapter_url"
 CONF_QDRANT = "qdrant"
 CONF_QDRANT_HOST = "host"
@@ -181,7 +182,7 @@ DEFAULTS = {
 }
 ```
 
-### `custom_components/cf_home_commands/__init__.py`
+### `custom_components/entangledhome/__init__.py`
 ```python
 from __future__ import annotations
 from homeassistant.core import HomeAssistant
@@ -210,7 +211,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 ```
 
-### `custom_components/cf_home_commands/conversation.py`
+### `custom_components/entangledhome/conversation.py`
 ```python
 from __future__ import annotations
 from homeassistant.core import HomeAssistant
@@ -221,11 +222,11 @@ async def async_setup_sentences(hass: HomeAssistant) -> None:
     return None
 ```
 
-### `custom_components/cf_home_commands/sentences/en.yaml`
+### `custom_components/entangledhome/sentences/en.yaml`
 ```yaml
 language: "en"
 intents:
-  CFInterpretCommand:
+  EHInterpretCommand:
     data:
       - sentences:
           - "{utterance:catchall}"
@@ -234,7 +235,7 @@ lists:
     wildcard: true
 ```
 
-### `custom_components/cf_home_commands/intent_handlers.py`
+### `custom_components/entangledhome/intent_handlers.py`
 ```python
 from __future__ import annotations
 from typing import Any
@@ -246,7 +247,7 @@ from homeassistant.helpers.entity_registry import async_get as async_get_entity_
 from .adapter_client import call_prompt_adapter
 from .qdrant_client import build_catalog_slice
 
-INTENT_NAME = "CFInterpretCommand"
+INTENT_NAME = "EHInterpretCommand"
 
 class InterpretCommandHandler(intent.IntentHandler):
     intent_type = INTENT_NAME
@@ -318,7 +319,7 @@ async def route_command(hass: HomeAssistant, cmd: dict[str, Any]) -> None:
         raise RuntimeError(f"Unknown intent: {intent_name}")
 ```
 
-### `custom_components/cf_home_commands/adapter_client.py`
+### `custom_components/entangledhome/adapter_client.py`
 ```python
 from __future__ import annotations
 import aiohttp
@@ -339,7 +340,7 @@ async def call_prompt_adapter(hass: HomeAssistant, utterance: str, catalog: dict
             return await resp.json()
 ```
 
-### `custom_components/cf_home_commands/qdrant_client.py`
+### `custom_components/entangledhome/qdrant_client.py`
 ```python
 from __future__ import annotations
 from typing import Any
@@ -393,7 +394,7 @@ async def build_catalog_slice(hass: HomeAssistant, utterance: str) -> dict[str, 
     return catalog
 ```
 
-### `custom_components/cf_home_commands/coordinator.py`
+### `custom_components/entangledhome/coordinator.py`
 ```python
 from __future__ import annotations
 from typing import Any
@@ -455,7 +456,7 @@ class CatalogCoordinator:
             qc.upsert(collection_name=coll, points=points)
 ```
 
-### `custom_components/cf_home_commands/helpers/color_maps.py`
+### `custom_components/entangledhome/helpers/color_maps.py`
 ```python
 COLOR_HS = {
     "red": [0, 100],
@@ -466,10 +467,10 @@ COLOR_HS = {
 }
 ```
 
-### `custom_components/cf_home_commands/strings.json`
+### `custom_components/entangledhome/strings.json`
 ```json
 {
-  "title": "ConstructorFleet Home Commands",
+  "title": "EntangledHome - Assistant",
   "config": {
     "step": {
       "user": {
@@ -481,19 +482,19 @@ COLOR_HS = {
 }
 ```
 
-### `custom_components/cf_home_commands/translations/en.json`
+### `custom_components/entangledhome/translations/en.json`
 ```json
 {
-  "title": "ConstructorFleet Home Commands"
+  "title": "EntangledHome - Assistant"
 }
 ```
 
-### `custom_components/cf_home_commands/services.yaml`
+### `custom_components/entangledhome/services.yaml`
 ```yaml
-# reserve for future: e.g., cf_home_commands.sync_catalog
+# reserve for future: e.g., entangledhome.sync_catalog
 ```
 
-### `custom_components/cf_home_commands/mock_adapter.py`
+### `custom_components/entangledhome/mock_adapter.py`
 ```python
 from __future__ import annotations
 
