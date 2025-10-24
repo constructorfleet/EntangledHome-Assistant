@@ -24,9 +24,6 @@ dev = [
     "httpx",
 ]
 
-[tool.uv]
-python = "3.13"
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["custom_components*"]
