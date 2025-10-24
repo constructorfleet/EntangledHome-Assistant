@@ -41,13 +41,18 @@ jobs:
 
       - name: Run pytest
         run: |
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -p pytest_cov --cov=. --cov-report=xml
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+          PYTEST_ADDOPTS="--assert=plain" \
+          uv run pytest -c /dev/null -p no:all -p pytest_cov --cov=. --cov-report=xml
+      # - name: Run pytest
+      #   run: |
+      #     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -p pytest_cov --cov=. --cov-report=xml
 
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.target }}
-          path: coverage.xml
-          if-no-files-found: ignore
-          retention-days: 7
+      # - name: Upload coverage artifact
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-${{ matrix.target }}
+      #     path: coverage.xml
+      #     if-no-files-found: ignore
+      #     retention-days: 7
