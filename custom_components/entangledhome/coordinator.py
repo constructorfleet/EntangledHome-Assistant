@@ -19,7 +19,6 @@ from .const import (
     OPT_ENABLE_PLEX_SYNC,
     OPT_REFRESH_INTERVAL_MINUTES,
 )
-from .catalog import build_catalog_payload, serialize_catalog_for_qdrant
 from .exporter import CatalogExporter
 
 _LOGGER = logging.getLogger(__name__)

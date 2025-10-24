@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 
 def test_ensure_default_options_populates_refresh_and_plex_defaults() -> None:
     """Defaults should include refresh cadence and Plex sync flags."""

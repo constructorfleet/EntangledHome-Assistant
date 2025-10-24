@@ -7,7 +7,7 @@ import asyncio
 def test_build_catalog_payload_includes_metadata() -> None:
     """Coordinator should include friendly names, aliases, capabilities, and Plex metadata."""
 
-    from custom_components.entangledhome.coordinator import build_catalog_payload
+    from custom_components.entangledhome.catalog import build_catalog_payload
 
     payload = build_catalog_payload(
         areas=[{"area_id": "living_room", "name": "Living Room", "aliases": ["lounge"]}],
@@ -55,7 +55,7 @@ def test_serialize_catalog_for_qdrant_validates_models() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from custom_components.entangledhome.coordinator import serialize_catalog_for_qdrant
+    from custom_components.entangledhome.catalog import serialize_catalog_for_qdrant
 
     valid_payload = {
         "areas": [],
@@ -156,3 +156,14 @@ def test_coordinator_skips_export_when_sync_disabled() -> None:
         asyncio.run(coordinator._async_update_data())
 
     exporter.assert_not_called()
+
+
+def test_coordinator_does_not_reexport_catalog_helpers() -> None:
+    """Catalog helpers should live in the catalog module, not coordinator."""
+
+    import importlib
+
+    module = importlib.import_module("custom_components.entangledhome.coordinator")
+
+    assert not hasattr(module, "build_catalog_payload")
+    assert not hasattr(module, "serialize_catalog_for_qdrant")
