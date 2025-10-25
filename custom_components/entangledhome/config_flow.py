@@ -148,12 +148,43 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._config_entry = config_entry
 
+    def async_show_form(
+        self,
+        *,
+        step_id: str,
+        data_schema: vol.Schema,
+        errors: dict[str, str] | None = None,
+        description_placeholders: dict[str, str] | None = None,
+    ) -> OptionsFlowResult:
+        base_handler = getattr(super(), "async_show_form", None)
+        if callable(base_handler):  # pragma: no branch - depends on HA version
+            try:
+                return base_handler(
+                    step_id=step_id,
+                    data_schema=data_schema,
+                    errors=errors,
+                    description_placeholders=description_placeholders,
+                )
+            except TypeError:  # pragma: no cover - legacy Home Assistant stubs
+                return base_handler(step_id=step_id, data_schema=data_schema)
+
+        return {
+            "type": "form",
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "errors": errors or {},
+            "description_placeholders": description_placeholders,
+        }
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> OptionsFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        return self.async_show_form(step_id="init", data_schema=self._options_schema())
+
+    def _options_schema(self) -> vol.Schema:
         base_schema: dict[vol.Schema, object] = {
             vol.Required(
                 OPT_ENABLE_CATALOG_SYNC,
@@ -182,10 +213,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         }
 
         base_schema.update(self._guardrail_option_schema())
-
-        return self.async_show_form(
-            step_id="init", data_schema=vol.Schema(base_schema)
-        )
+        return vol.Schema(base_schema)
 
     def _current_option(self, key: str, default: object) -> object:
         return self._config_entry.options.get(key, default)
