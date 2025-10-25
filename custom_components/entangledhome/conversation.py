@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
 import inspect
 import json
+import logging
 from typing import Any, Awaitable, Callable, Iterable, Mapping
 import time
 
@@ -26,6 +27,11 @@ from .const import (
     DEFAULT_NIGHT_MODE_START_HOUR,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
+    OPT_ALLOWED_HOURS,
+    OPT_DANGEROUS_INTENTS,
+    OPT_DISABLED_INTENTS,
+    OPT_INTENT_THRESHOLDS,
+    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_CONFIDENCE_THRESHOLD,
     OPT_DEDUPLICATION_WINDOW,
     OPT_ENABLE_CONFIDENCE_GATE,
@@ -40,6 +46,123 @@ from .telemetry import TelemetryRecorder
 
 CatalogProvider = Callable[[], CatalogPayload | Awaitable[CatalogPayload]]
 
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class GuardrailBundle:
+    """Normalized guardrail configuration for conversation decisions."""
+
+    intent_thresholds: dict[str, float] = field(default_factory=dict)
+    disabled_intents: set[str] = field(default_factory=set)
+    dangerous_intents: set[str] = field(default_factory=set)
+    allowed_hours: dict[str, tuple[int, int]] = field(default_factory=dict)
+    recent_command_windows: dict[str, float] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | "GuardrailBundle" | None) -> "GuardrailBundle":
+        if isinstance(data, GuardrailBundle):
+            return data
+
+        mapping: Mapping[str, Any] = data or {}
+
+        thresholds: dict[str, float] = {}
+        raw_thresholds = mapping.get(OPT_INTENT_THRESHOLDS, {})
+        if isinstance(raw_thresholds, Mapping):
+            for intent, value in raw_thresholds.items():
+                try:
+                    thresholds[str(intent)] = float(value)
+                except (TypeError, ValueError):
+                    continue
+
+        disabled = cls._coerce_str_set(mapping.get(OPT_DISABLED_INTENTS, ()))
+        dangerous = cls._coerce_str_set(mapping.get(OPT_DANGEROUS_INTENTS, ()))
+
+        allowed: dict[str, tuple[int, int]] = {}
+        raw_allowed = mapping.get(OPT_ALLOWED_HOURS, {})
+        if isinstance(raw_allowed, Mapping):
+            for intent, value in raw_allowed.items():
+                hours = cls._coerce_hours(value)
+                if hours is not None:
+                    allowed[str(intent)] = hours
+
+        windows: dict[str, float] = {}
+        raw_windows = mapping.get(OPT_RECENT_COMMAND_WINDOW_OVERRIDES, {})
+        if isinstance(raw_windows, Mapping):
+            for intent, value in raw_windows.items():
+                try:
+                    window = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if window >= 0:
+                    windows[str(intent)] = window
+
+        return cls(
+            intent_thresholds=thresholds,
+            disabled_intents=disabled,
+            dangerous_intents=dangerous,
+            allowed_hours=allowed,
+            recent_command_windows=windows,
+        )
+
+    def threshold_for(self, intent: str) -> float | None:
+        return self.intent_thresholds.get(intent)
+
+    def dedupe_window_for(self, intent: str) -> float | None:
+        return self.recent_command_windows.get(intent)
+
+    def allowed_hours_for(self, intent: str) -> tuple[int, int] | None:
+        return self.allowed_hours.get(intent)
+
+    def is_disabled(self, intent: str) -> bool:
+        return intent in self.disabled_intents
+
+    def is_dangerous(self, intent: str) -> bool:
+        return intent in self.dangerous_intents
+
+    def intent_config(self, intent: str) -> dict[str, Any]:
+        config: dict[str, Any] = {}
+        threshold = self.threshold_for(intent)
+        if threshold is not None:
+            config["confidence_threshold"] = threshold
+        window = self.dedupe_window_for(intent)
+        if window is not None:
+            config["recent_command_window"] = window
+        hours = self.allowed_hours_for(intent)
+        if hours is not None:
+            config["allowed_hours"] = hours
+        if self.is_dangerous(intent):
+            config["dangerous"] = True
+        if self.is_disabled(intent):
+            config["disabled"] = True
+        return config
+
+    @staticmethod
+    def _coerce_str_set(value: Any) -> set[str]:
+        if isinstance(value, str):
+            items = [item.strip() for item in value.split(",") if item.strip()]
+            return set(items)
+        if isinstance(value, (list, tuple, set)):
+            return {str(item).strip() for item in value if str(item).strip()}
+        return set()
+
+    @staticmethod
+    def _coerce_hours(value: Any) -> tuple[int, int] | None:
+        if isinstance(value, Mapping):
+            start = value.get("start")
+            end = value.get("end")
+        elif isinstance(value, (list, tuple)) and len(value) == 2:
+            start, end = value
+        else:
+            return None
+        try:
+            start_hour = int(start)
+            end_hour = int(end)
+        except (TypeError, ValueError):
+            return None
+        if not 0 <= start_hour <= 23 or not 0 <= end_hour <= 23:
+            return None
+        return start_hour, end_hour
 
 @dataclass
 class ConversationResult:
@@ -64,6 +187,7 @@ class EntangledHomeConversationHandler:
         now_provider: Callable[[], datetime] | None = None,
         secondary_signal_provider: Callable[[], Iterable[str]] | None = None,
         telemetry_recorder: TelemetryRecorder | None = None,
+        guardrail_config: Mapping[str, Any] | GuardrailBundle | None = None,
     ) -> None:
         self._hass = hass
         self._entry = entry
@@ -76,6 +200,14 @@ class EntangledHomeConversationHandler:
         self._secondary_signal_provider = secondary_signal_provider or (lambda: ())
         self._last_shared_secret: str | None = None
         self._telemetry = telemetry_recorder
+        self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
+
+    def set_guardrail_config(
+        self, guardrail_config: Mapping[str, Any] | GuardrailBundle | None
+    ) -> None:
+        """Update the active guardrail configuration."""
+
+        self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
 
     async def async_handle(self, utterance: str) -> ConversationResult:
         """Interpret and execute ``utterance`` applying configured guardrails."""
@@ -86,30 +218,108 @@ class EntangledHomeConversationHandler:
         self._apply_adapter_shared_secret(options)
 
         if self._night_mode_active(options):
-            return ConversationResult(False, "Night mode is active. Try again later.")
+            return self._guardrail_block(
+                utterance=utterance,
+                message="Night mode is active. Try again later.",
+                reason="night_mode_active",
+            )
 
         catalog = await self._resolve_catalog()
         response = await self._adapter.interpret(utterance, catalog)
 
-        if self._confidence_blocked(response, options):
-            return ConversationResult(False, "Confidence too low to execute safely.")
+        guardrails = self._guardrails
+        intent = response.intent
+        intent_config = guardrails.intent_config(intent)
+        threshold_override = intent_config.get("confidence_threshold")
+        dedupe_window = intent_config.get("recent_command_window")
+        allowed_hours = intent_config.get("allowed_hours")
+        is_dangerous = bool(intent_config.get("dangerous"))
+        if dedupe_window is None:
+            dedupe_window = float(
+                options.get(OPT_DEDUPLICATION_WINDOW, DEFAULT_DEDUPLICATION_WINDOW)
+            )
 
-        dedupe_window = float(
-            options.get(OPT_DEDUPLICATION_WINDOW, DEFAULT_DEDUPLICATION_WINDOW)
-        )
+        if guardrails.is_disabled(intent):
+            return self._guardrail_block(
+                utterance=utterance,
+                response=response,
+                message="This intent is disabled by configuration.",
+                reason="intent_disabled",
+            )
+
+        if threshold_override is not None and response.confidence < threshold_override:
+            return self._guardrail_block(
+                utterance=utterance,
+                response=response,
+                message="Confidence too low to execute safely.",
+                reason="intent_threshold",
+                detail={"threshold": threshold_override},
+            )
+
+        if self._confidence_blocked(response, options):
+            configured_threshold = float(
+                options.get(OPT_CONFIDENCE_THRESHOLD, DEFAULT_CONFIDENCE_THRESHOLD)
+            )
+            return self._guardrail_block(
+                utterance=utterance,
+                response=response,
+                message="Confidence too low to execute safely.",
+                reason="confidence_gate",
+                detail={
+                    "threshold": configured_threshold,
+                    "gate_enabled": bool(
+                        options.get(OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE)
+                    ),
+                },
+            )
+
         token = self._response_token(response)
         now_value = self._monotonic()
         self._prune_dedupe(now_value, dedupe_window)
 
         if dedupe_window > 0 and self._is_recent_duplicate(token, now_value, dedupe_window):
-            return ConversationResult(False, "Duplicate command suppressed.")
+            return self._guardrail_block(
+                utterance=utterance,
+                response=response,
+                message="Duplicate command suppressed.",
+                reason="duplicate_suppressed",
+                detail={"dedupe_window": dedupe_window},
+            )
 
         missing_signals = self._missing_secondary_signals(response)
         if missing_signals:
-            return ConversationResult(False, self._format_secondary_signal_message(missing_signals))
+            return self._guardrail_block(
+                utterance=utterance,
+                response=response,
+                message=self._format_secondary_signal_message(missing_signals),
+                reason="missing_secondary_signals",
+                detail={"missing_secondary_signals": list(missing_signals)},
+            )
+
+        if is_dangerous:
+            if allowed_hours is not None and not self._within_allowed_hours(allowed_hours):
+                return self._guardrail_block(
+                    utterance=utterance,
+                    response=response,
+                    message="Intent is restricted to allowed hours.",
+                    reason="dangerous_intent_after_hours",
+                    detail={"allowed_hours": list(allowed_hours)},
+                )
+            if not self._has_verification_flags(response):
+                return self._guardrail_block(
+                    utterance=utterance,
+                    response=response,
+                    message="Additional verification required before executing this intent.",
+                    reason="dangerous_intent_missing_verification",
+                )
 
         try:
-            result = self._intent_executor(self._hass, response, catalog=catalog)
+            result = self._intent_executor(
+                self._hass,
+                response,
+                catalog=catalog,
+                intent_config=intent_config,
+            )
             if inspect.isawaitable(result):
                 await result
         except IntentHandlingError as exc:
@@ -143,6 +353,22 @@ class EntangledHomeConversationHandler:
             response=response,
             duration_ms=duration_ms,
             outcome="executed",
+        )
+
+        execution_detail: dict[str, Any] = {"dedupe_window": dedupe_window}
+        if threshold_override is not None:
+            execution_detail["confidence_threshold"] = threshold_override
+        if allowed_hours is not None:
+            execution_detail["allowed_hours"] = list(allowed_hours)
+        if is_dangerous:
+            execution_detail["dangerous"] = True
+
+        self._emit_guardrail_log(
+            utterance=utterance,
+            response=response,
+            reason="intent_executed",
+            outcome="executed",
+            detail=execution_detail,
         )
 
         return ConversationResult(True, "Intent executed successfully.")
@@ -267,6 +493,90 @@ class EntangledHomeConversationHandler:
         )
         return ConversationResult(False, message)
 
+    def _guardrail_block(
+        self,
+        *,
+        utterance: str,
+        message: str,
+        reason: str,
+        response: InterpretResponse | None = None,
+        detail: Mapping[str, Any] | None = None,
+    ) -> ConversationResult:
+        self._emit_guardrail_log(
+            utterance=utterance,
+            response=response,
+            reason=reason,
+            outcome="blocked",
+            detail=detail,
+        )
+        return ConversationResult(False, message)
+
+    def _emit_guardrail_log(
+        self,
+        *,
+        utterance: str,
+        response: InterpretResponse | None,
+        reason: str,
+        outcome: str,
+        detail: Mapping[str, Any] | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "utterance": utterance,
+            "reason": reason,
+            "outcome": outcome,
+        }
+        if response is not None:
+            payload.update(
+                {
+                    "intent": response.intent,
+                    "confidence": float(response.confidence),
+                    "area": response.area,
+                }
+            )
+        if detail:
+            payload.update(detail)
+        try:
+            _LOGGER.info(
+                "entangledhome.guardrail",
+                extra={"entangled_guardrail": payload},
+            )
+        except Exception:  # pragma: no cover - logging should not break execution
+            _LOGGER.debug("Failed to emit guardrail log", exc_info=True)
+
+    def _within_allowed_hours(self, hours: tuple[int, int]) -> bool:
+        start, end = hours
+        current = self._now().hour
+        if start == end:
+            return True
+        if start < end:
+            return start <= current < end
+        return current >= start or current < end
+
+    def _has_verification_flags(self, response: InterpretResponse) -> bool:
+        params = getattr(response, "params", {}) or {}
+        if isinstance(params, Mapping):
+            flags = params.get("verification_flags")
+            if isinstance(flags, str) and flags.strip():
+                return True
+            if isinstance(flags, (list, tuple, set)):
+                if any(str(flag).strip() for flag in flags):
+                    return True
+            verification = params.get("verification")
+            if isinstance(verification, Mapping):
+                nested_flags = verification.get("flags")
+                if isinstance(nested_flags, str) and nested_flags.strip():
+                    return True
+                if isinstance(nested_flags, (list, tuple, set)):
+                    if any(str(flag).strip() for flag in nested_flags):
+                        return True
+                confirmed = verification.get("confirmed") or verification.get("verified")
+                if isinstance(confirmed, bool) and confirmed:
+                    return True
+            confirmed = params.get("verified")
+            if isinstance(confirmed, bool):
+                return confirmed
+        return False
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Register the EntangledHome conversation agent for ``entry``."""
@@ -287,6 +597,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         intent_executor=async_execute_intent,
         secondary_signal_provider=secondary_signals,
         telemetry_recorder=telemetry,
+        guardrail_config=entry_data.get("guardrail_config"),
     )
 
     entry_data["conversation_handler"] = handler

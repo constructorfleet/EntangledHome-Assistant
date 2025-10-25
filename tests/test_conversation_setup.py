@@ -108,7 +108,11 @@ async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatc
     execute_calls: list[tuple[HomeAssistant, InterpretResponse, CatalogPayload]] = []
 
     async def fake_execute(
-        hass_obj: HomeAssistant, response: InterpretResponse, *, catalog: CatalogPayload
+        hass_obj: HomeAssistant,
+        response: InterpretResponse,
+        *,
+        catalog: CatalogPayload,
+        **kwargs: object,
     ) -> None:
         execute_calls.append((hass_obj, response, catalog))
 

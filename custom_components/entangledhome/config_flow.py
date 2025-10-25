@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
+import json
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -24,9 +25,14 @@ from .const import (
     DEFAULT_CONFIDENCE_GATE,
     DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_DEDUPLICATION_WINDOW,
+    DEFAULT_DISABLED_INTENTS,
+    DEFAULT_DANGEROUS_INTENTS,
+    DEFAULT_ALLOWED_HOURS,
+    DEFAULT_INTENT_THRESHOLDS,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_ENABLED,
     DEFAULT_NIGHT_MODE_START_HOUR,
+    DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
     DEFAULT_PLEX_SYNC,
     DEFAULT_REFRESH_INTERVAL_MINUTES,
     DOMAIN,
@@ -36,12 +42,102 @@ from .const import (
     OPT_ENABLE_CATALOG_SYNC,
     OPT_ENABLE_CONFIDENCE_GATE,
     OPT_ENABLE_PLEX_SYNC,
+    OPT_INTENT_THRESHOLDS,
+    OPT_DISABLED_INTENTS,
+    OPT_DANGEROUS_INTENTS,
+    OPT_ALLOWED_HOURS,
+    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
     OPT_REFRESH_INTERVAL_MINUTES,
     TITLE,
 )
+
+
+def _coerce_json_object(value: object, *, default: Mapping[str, object] | None = None) -> dict[str, object]:
+    if value in (None, ""):
+        return dict(default or {})
+    if isinstance(value, dict):
+        return {str(key): val for key, val in value.items()}
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value or "{}")
+        except json.JSONDecodeError as exc:  # pragma: no cover - validation path
+            raise vol.Invalid(f"Invalid JSON mapping: {exc}")
+        if isinstance(parsed, dict):
+            return {str(key): val for key, val in parsed.items()}
+    raise vol.Invalid("Expected a JSON object mapping intents to values")
+
+
+def _coerce_string_list(value: object) -> list[str]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return [item for item in (part.strip() for part in stripped.split(",")) if item]
+        if isinstance(parsed, (list, tuple, set)):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    raise vol.Invalid("Expected a JSON array or comma separated string of intents")
+
+
+def _validate_intent_thresholds(value: object) -> dict[str, float]:
+    data = _coerce_json_object(value)
+    thresholds: dict[str, float] = {}
+    for intent, raw in data.items():
+        try:
+            threshold = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise vol.Invalid(f"Invalid threshold for {intent}: {raw}") from exc
+        if not 0.0 <= threshold <= 1.0:
+            raise vol.Invalid(f"Threshold for {intent} must be between 0 and 1")
+        thresholds[intent] = threshold
+    return thresholds
+
+
+def _validate_allowed_hours(value: object) -> dict[str, list[int]]:
+    data = _coerce_json_object(value)
+    hours: dict[str, list[int]] = {}
+    for intent, raw in data.items():
+        if isinstance(raw, Mapping):
+            start = raw.get("start")
+            end = raw.get("end")
+        elif isinstance(raw, (list, tuple)) and len(raw) == 2:
+            start, end = raw
+        else:
+            raise vol.Invalid(
+                f"Allowed hours for {intent} must be [start, end] or an object with start/end"
+            )
+        try:
+            start_hour = int(start)
+            end_hour = int(end)
+        except (TypeError, ValueError) as exc:
+            raise vol.Invalid(f"Invalid allowed hours for {intent}") from exc
+        if not 0 <= start_hour <= 23 or not 0 <= end_hour <= 23:
+            raise vol.Invalid(f"Allowed hours for {intent} must be between 0 and 23")
+        hours[intent] = [start_hour, end_hour]
+    return hours
+
+
+def _validate_recent_windows(value: object) -> dict[str, float]:
+    data = _coerce_json_object(value)
+    windows: dict[str, float] = {}
+    for intent, raw in data.items():
+        try:
+            window = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise vol.Invalid(f"Invalid dedupe window for {intent}: {raw}") from exc
+        if window < 0:
+            raise vol.Invalid(f"Dedupe window for {intent} must be non-negative")
+        windows[intent] = window
+    return windows
 
 GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], ...] = (
     (
@@ -76,6 +172,18 @@ GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], 
     ),
 )
 
+GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
+    (OPT_INTENT_THRESHOLDS, DEFAULT_INTENT_THRESHOLDS, _validate_intent_thresholds),
+    (OPT_DISABLED_INTENTS, list(DEFAULT_DISABLED_INTENTS), _coerce_string_list),
+    (OPT_DANGEROUS_INTENTS, list(DEFAULT_DANGEROUS_INTENTS), _coerce_string_list),
+    (OPT_ALLOWED_HOURS, DEFAULT_ALLOWED_HOURS, _validate_allowed_hours),
+    (
+        OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+        DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
+        _validate_recent_windows,
+    ),
+)
+
 USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ADAPTER_URL): str,
@@ -90,6 +198,10 @@ USER_SCHEMA = vol.Schema(
         **{
             vol.Required(option_key, default=default): validator
             for _, option_key, default, validator in GUARDRAIL_OPTION_FIELDS
+        },
+        **{
+            vol.Required(option_key, default=default): validator
+            for option_key, default, validator in GUARDRAIL_COMPLEX_OPTION_FIELDS
         },
         vol.Required(
             OPT_REFRESH_INTERVAL_MINUTES,
@@ -133,6 +245,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
             OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],
         }
+
+        for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
+            options[option_key] = user_input[option_key]
 
         return self.async_create_entry(title=TITLE, data=data, options=options)
 
@@ -213,6 +328,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         }
 
         base_schema.update(self._guardrail_option_schema())
+        base_schema.update(self._complex_guardrail_schema())
         return vol.Schema(base_schema)
 
     def _current_option(self, key: str, default: object) -> object:
@@ -246,3 +362,33 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 )
             ] = validator
         return schema
+
+    def _complex_guardrail_schema(self) -> dict[vol.Schema, object]:
+        schema: dict[vol.Schema, object] = {}
+        for option_key, default, validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
+            schema[
+                vol.Required(
+                    option_key,
+                    default=self._current_complex_default(option_key, default),
+                )
+            ] = validator
+        return schema
+
+    def _current_complex_default(self, key: str, default: object) -> object:
+        value = self._config_entry.options.get(key, default)
+        if isinstance(default, dict):
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except json.JSONDecodeError:
+                    value = default
+            return dict(value)
+        if isinstance(default, (list, tuple)):
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    parsed = [part.strip() for part in value.split(",") if part.strip()]
+                return [str(item).strip() for item in parsed if str(item).strip()]
+            return [str(item).strip() for item in value] if value else []
+        return value
