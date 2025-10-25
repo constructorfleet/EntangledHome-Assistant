@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import AsyncIterator, Callable, Final
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from starlette import status
 
 from .schema import CatalogPayload, InterpretRequest, InterpretResponse
+
+SIGNATURE_HEADER = "X-Entangled-Signature"
 
 
 @dataclass(frozen=True)
@@ -25,6 +30,7 @@ class Settings:
     qdrant_timeout_s: float
     adapter_timeout_s: float
     catalog_cache_size: int
+    shared_secret: str | None
 
 
 def _parse_float(value: str | None, default: float) -> float:
@@ -58,6 +64,7 @@ def _load_settings() -> Settings:
         qdrant_timeout_s=_parse_float(os.getenv("QDRANT_TIMEOUT_S"), 0.4),
         adapter_timeout_s=_parse_float(os.getenv("ADAPTER_TIMEOUT_S"), 2.0),
         catalog_cache_size=_parse_int(os.getenv("CATALOG_CACHE_SIZE"), 256),
+        shared_secret=os.getenv("ADAPTER_SHARED_SECRET"),
     )
 
 
@@ -148,8 +155,12 @@ def _record_metric(total_ms: float, stream_ms: float) -> None:
 
 
 @app.post("/interpret", response_model=InterpretResponse)
-async def interpret(payload: InterpretRequest) -> InterpretResponse:
+async def interpret(request: Request, payload: InterpretRequest) -> InterpretResponse:
     """Stream model responses with caching and duration metrics."""
+
+    if SETTINGS.shared_secret:
+        body = await request.body()
+        _enforce_signature(body, request.headers.get(SIGNATURE_HEADER))
 
     normalized = _normalize_utterance(payload.utterance)
     catalog_slice = CATALOG_CACHE.get(
@@ -186,3 +197,18 @@ async def interpret(payload: InterpretRequest) -> InterpretResponse:
     _record_metric(total_duration_ms, stream_duration_ms)
 
     return latest_response
+
+
+def _enforce_signature(body: bytes, provided: str | None) -> None:
+    secret = SETTINGS.shared_secret or ""
+    if not secret:
+        return
+    if not provided:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature"
+        )
+    expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(provided, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature"
+        )

@@ -15,6 +15,7 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
         DEFAULT_NIGHT_MODE_END_HOUR,
         DEFAULT_NIGHT_MODE_ENABLED,
         DEFAULT_NIGHT_MODE_START_HOUR,
+        OPT_ADAPTER_SHARED_SECRET,
         OPT_CONFIDENCE_THRESHOLD,
         OPT_DEDUPLICATION_WINDOW,
         OPT_NIGHT_MODE_ENABLED,
@@ -40,6 +41,7 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
     assert entry.options[OPT_NIGHT_MODE_START_HOUR] == DEFAULT_NIGHT_MODE_START_HOUR
     assert entry.options[OPT_NIGHT_MODE_END_HOUR] == DEFAULT_NIGHT_MODE_END_HOUR
     assert entry.options[OPT_DEDUPLICATION_WINDOW] == DEFAULT_DEDUPLICATION_WINDOW
+    assert entry.options[OPT_ADAPTER_SHARED_SECRET] == ""
 
 
 def test_ensure_default_options_populates_refresh_and_plex_defaults() -> None:
@@ -93,6 +95,7 @@ def test_ensure_default_options_preserves_existing_values() -> None:
         OPT_NIGHT_MODE_START_HOUR,
         OPT_DEDUPLICATION_WINDOW,
         OPT_REFRESH_INTERVAL_MINUTES,
+        OPT_ADAPTER_SHARED_SECRET,
     )
 
     hass = SimpleNamespace()
@@ -115,6 +118,7 @@ def test_ensure_default_options_preserves_existing_values() -> None:
             OPT_NIGHT_MODE_START_HOUR: 21,
             OPT_NIGHT_MODE_END_HOUR: 7,
             OPT_DEDUPLICATION_WINDOW: 1.5,
+            OPT_ADAPTER_SHARED_SECRET: "existing-secret",
         },
     )
 

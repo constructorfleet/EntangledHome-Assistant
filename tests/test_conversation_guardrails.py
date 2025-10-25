@@ -14,6 +14,7 @@ from custom_components.entangledhome.const import (
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
+    OPT_ADAPTER_SHARED_SECRET,
 )
 from custom_components.entangledhome.conversation import (
     ConversationResult,
@@ -31,6 +32,7 @@ class DummyAdapter:
     def __init__(self, responses: Iterable[InterpretResponse]) -> None:
         self._responses = deque(responses)
         self.calls: list[str] = []
+        self.shared_secret: str | None = None
 
     async def interpret(self, utterance: str, catalog: CatalogPayload) -> InterpretResponse:
         self.calls.append(utterance)
@@ -38,6 +40,9 @@ class DummyAdapter:
             return self._responses.popleft()
         except IndexError:  # pragma: no cover - defensive guard
             raise AssertionError("Adapter interpret called more than expected")
+
+    def set_shared_secret(self, secret: str | None) -> None:
+        self.shared_secret = secret
 
 
 class DummyExecutor:
@@ -185,3 +190,70 @@ async def test_recent_duplicate_commands_are_suppressed() -> None:
     assert second.success is False
     assert "duplicate" in second.response.lower()
     assert len(executor.calls) == 1
+
+
+async def test_sensitive_intents_require_secondary_signals() -> None:
+    """Sensitive intents should require secondary signals before execution."""
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front_door",
+        targets=["lock.front_door"],
+        params={},
+        confidence=0.91,
+        required_secondary_signals=["presence"],
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            OPT_ENABLE_CONFIDENCE_GATE: True,
+            OPT_CONFIDENCE_THRESHOLD: 0.6,
+            OPT_NIGHT_MODE_ENABLED: False,
+            OPT_NIGHT_MODE_START_HOUR: 23,
+            OPT_NIGHT_MODE_END_HOUR: 6,
+            OPT_DEDUPLICATION_WINDOW: 2.0,
+        },
+    )
+    handler._secondary_signal_provider = lambda: set()
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is False
+    assert "secondary" in result.response.lower()
+    assert executor.calls == []
+
+
+async def test_adapter_client_receives_shared_secret_from_options() -> None:
+    """Conversation handler should propagate the shared secret to the adapter."""
+
+    response = InterpretResponse(
+        intent="turn_on",
+        area="garage",
+        targets=["switch.garage"],
+        params={},
+        confidence=0.95,
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    shared_secret = "hmac-secret"
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            OPT_ENABLE_CONFIDENCE_GATE: False,
+            OPT_CONFIDENCE_THRESHOLD: 0.5,
+            OPT_NIGHT_MODE_ENABLED: False,
+            OPT_NIGHT_MODE_START_HOUR: 23,
+            OPT_NIGHT_MODE_END_HOUR: 6,
+            OPT_DEDUPLICATION_WINDOW: 2.0,
+            OPT_ADAPTER_SHARED_SECRET: shared_secret,
+        },
+    )
+
+    result = await handler.async_handle("turn on the garage switch")
+
+    assert result.success is True
+    assert adapter.shared_secret == shared_secret

@@ -1,5 +1,12 @@
+import hashlib
+import hmac
+import json
+
 import pytest
 from fastapi.testclient import TestClient
+
+
+SHARED_SECRET = "test-shared-secret"
 
 
 @pytest.fixture(autouse=True)
@@ -7,6 +14,17 @@ def _set_env(monkeypatch):
     monkeypatch.setenv("ADAPTER_MODEL", "mock-model")
     monkeypatch.setenv("QDRANT_HOST", "http://localhost:6333")
     monkeypatch.setenv("QDRANT_API_KEY", "test-key")
+    monkeypatch.setenv("ADAPTER_SHARED_SECRET", SHARED_SECRET)
+
+
+def _post_with_signature(client: TestClient, payload: dict, secret: str):
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "X-Entangled-Signature": signature,
+    }
+    return client.post("/interpret", data=body, headers=headers)
 
 
 def test_interpret_endpoint_returns_valid_response():
@@ -31,7 +49,9 @@ def test_interpret_endpoint_returns_valid_response():
         },
     )
 
-    response = client.post("/interpret", json=request_payload.model_dump())
+    response = _post_with_signature(
+        client, request_payload.model_dump(mode="json"), SHARED_SECRET
+    )
 
     assert response.status_code == 200
 
@@ -130,8 +150,8 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
         },
     )
 
-    first_response = client.post(
-        "/interpret", json=request_payload.model_dump(mode="json")
+    first_response = _post_with_signature(
+        client, request_payload.model_dump(mode="json"), SHARED_SECRET
     )
 
     assert first_response.status_code == 200
@@ -149,8 +169,8 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     second_payload.catalog = request_payload.catalog.model_copy()
     second_payload.catalog.areas[0].name = "Upstairs"
 
-    second_response = client.post(
-        "/interpret", json=second_payload.model_dump(mode="json")
+    second_response = _post_with_signature(
+        client, second_payload.model_dump(mode="json"), SHARED_SECRET
     )
 
     assert second_response.status_code == 200
@@ -161,15 +181,46 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
             utterance=utterance,
             catalog=request_payload.catalog,
         )
-        result = client.post(
-            "/interpret", json=extra_payload.model_dump(mode="json")
+        result = _post_with_signature(
+            client, extra_payload.model_dump(mode="json"), SHARED_SECRET
         )
         assert result.status_code == 200
         assert len(build_calls) == idx + 2
 
-    third_response = client.post(
-        "/interpret", json=request_payload.model_dump(mode="json")
+    third_response = _post_with_signature(
+        client, request_payload.model_dump(mode="json"), SHARED_SECRET
     )
 
     assert third_response.status_code == 200
     assert len(build_calls) == 4
+
+
+def test_interpret_endpoint_rejects_invalid_signature():
+    from adapter_service.main import app
+    from adapter_service.schema import InterpretRequest
+
+    client = TestClient(app)
+
+    request_payload = InterpretRequest(
+        utterance="unlock the door",
+        catalog={
+            "areas": [],
+            "entities": [],
+            "scenes": [],
+            "plex_media": [],
+        },
+    )
+
+    body = json.dumps(
+        request_payload.model_dump(mode="json"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    headers = {
+        "Content-Type": "application/json",
+        "X-Entangled-Signature": "deadbeef",
+    }
+
+    response = client.post("/interpret", data=body, headers=headers)
+
+    assert response.status_code == 401
