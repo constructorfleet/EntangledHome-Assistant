@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_DISABLED_INTENTS,
     DEFAULT_DANGEROUS_INTENTS,
     DEFAULT_ALLOWED_HOURS,
+    DEFAULT_INTENTS_CONFIG,
     DEFAULT_INTENT_THRESHOLDS,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_ENABLED,
@@ -42,6 +43,7 @@ from .const import (
     OPT_ENABLE_CATALOG_SYNC,
     OPT_ENABLE_CONFIDENCE_GATE,
     OPT_ENABLE_PLEX_SYNC,
+    OPT_INTENTS_CONFIG,
     OPT_INTENT_THRESHOLDS,
     OPT_DISABLED_INTENTS,
     OPT_DANGEROUS_INTENTS,
@@ -139,6 +141,16 @@ def _validate_recent_windows(value: object) -> dict[str, float]:
         windows[intent] = window
     return windows
 
+
+def _validate_intents_config(value: object) -> dict[str, dict[str, object]]:
+    data = _coerce_json_object(value, default=DEFAULT_INTENTS_CONFIG)
+    intents: dict[str, dict[str, object]] = {}
+    for intent, raw in data.items():
+        if not isinstance(raw, Mapping):
+            raise vol.Invalid(f"Intent configuration for {intent} must be a mapping")
+        intents[intent] = {str(key): val for key, val in raw.items()}
+    return intents
+
 GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], ...] = (
     (
         "float",
@@ -184,6 +196,12 @@ GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
     ),
 )
 
+INTENTS_OPTION_FIELD: tuple[str, object, Any] = (
+    OPT_INTENTS_CONFIG,
+    DEFAULT_INTENTS_CONFIG,
+    _validate_intents_config,
+)
+
 USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ADAPTER_URL): str,
@@ -211,6 +229,10 @@ USER_SCHEMA = vol.Schema(
             OPT_ENABLE_PLEX_SYNC,
             default=DEFAULT_PLEX_SYNC,
         ): vol.Boolean(),
+        vol.Required(
+            INTENTS_OPTION_FIELD[0],
+            default=INTENTS_OPTION_FIELD[1],
+        ): INTENTS_OPTION_FIELD[2],
     }
 )
 
@@ -244,6 +266,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
             OPT_REFRESH_INTERVAL_MINUTES: user_input[OPT_REFRESH_INTERVAL_MINUTES],
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
             OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],
+            OPT_INTENTS_CONFIG: user_input[OPT_INTENTS_CONFIG],
         }
 
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
@@ -325,6 +348,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 OPT_ADAPTER_SHARED_SECRET,
                 default=self._current_option(OPT_ADAPTER_SHARED_SECRET, ""),
             ): str,
+            vol.Required(
+                INTENTS_OPTION_FIELD[0],
+                default=self._current_complex_default(
+                    INTENTS_OPTION_FIELD[0], INTENTS_OPTION_FIELD[1]
+                ),
+            ): INTENTS_OPTION_FIELD[2],
         }
 
         base_schema.update(self._guardrail_option_schema())

@@ -47,6 +47,7 @@ from .telemetry import TelemetryRecorder
 CatalogProvider = Callable[[], CatalogPayload | Awaitable[CatalogPayload]]
 
 _LOGGER = logging.getLogger(__name__)
+TRUTHY_STRINGS: set[str] = {"1", "true", "yes", "on"}
 
 
 @dataclass
@@ -188,6 +189,7 @@ class EntangledHomeConversationHandler:
         secondary_signal_provider: Callable[[], Iterable[str]] | None = None,
         telemetry_recorder: TelemetryRecorder | None = None,
         guardrail_config: Mapping[str, Any] | GuardrailBundle | None = None,
+        intents_config: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         self._hass = hass
         self._entry = entry
@@ -201,6 +203,7 @@ class EntangledHomeConversationHandler:
         self._last_shared_secret: str | None = None
         self._telemetry = telemetry_recorder
         self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
+        self._intents_config = self._sanitize_intents(intents_config)
 
     def set_guardrail_config(
         self, guardrail_config: Mapping[str, Any] | GuardrailBundle | None
@@ -208,6 +211,13 @@ class EntangledHomeConversationHandler:
         """Update the active guardrail configuration."""
 
         self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
+
+    def set_intents_config(
+        self, intents_config: Mapping[str, Mapping[str, Any]] | None
+    ) -> None:
+        """Update the intents metadata passed to the adapter."""
+
+        self._intents_config = self._sanitize_intents(intents_config)
 
     async def async_handle(self, utterance: str) -> ConversationResult:
         """Interpret and execute ``utterance`` applying configured guardrails."""
@@ -225,7 +235,11 @@ class EntangledHomeConversationHandler:
             )
 
         catalog = await self._resolve_catalog()
-        response = await self._adapter.interpret(utterance, catalog)
+        response = await self._adapter.interpret(
+            utterance,
+            catalog,
+            intents=self._intents_config,
+        )
 
         guardrails = self._guardrails
         intent = response.intent
@@ -577,6 +591,72 @@ class EntangledHomeConversationHandler:
                 return confirmed
         return False
 
+    @staticmethod
+    def _sanitize_intents(
+        intents_config: Mapping[str, Mapping[str, Any]] | None,
+    ) -> dict[str, dict[str, Any]]:
+        sanitized: dict[str, dict[str, Any]] = {}
+        if not intents_config:
+            return sanitized
+
+        for intent, config in intents_config.items():
+            if not isinstance(config, Mapping):
+                continue
+            enabled_raw = config.get("enabled", True)
+            enabled = EntangledHomeConversationHandler._coerce_bool(enabled_raw)
+            if not enabled:
+                continue
+
+            slots = EntangledHomeConversationHandler._sanitize_slots(config.get("slots"))
+            payload: dict[str, Any] = {"slots": slots}
+
+            threshold = config.get("threshold")
+            if threshold is not None:
+                coerced = EntangledHomeConversationHandler._coerce_threshold(threshold)
+                if coerced is not None:
+                    payload["threshold"] = coerced
+
+            sanitized[str(intent)] = payload
+
+        return sanitized
+
+    @staticmethod
+    def _sanitize_slots(raw: Any) -> list[str]:
+        candidates: list[str] = []
+        if isinstance(raw, str):
+            candidates = [part.strip() for part in raw.split(",")]
+        elif isinstance(raw, Mapping):
+            candidates = [str(value).strip() for value in raw.values()]
+        else:
+            try:
+                candidates = [str(value).strip() for value in raw or ()]
+            except TypeError:
+                candidates = []
+
+        slots: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                slots.append(candidate)
+        return slots
+
+    @staticmethod
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in TRUTHY_STRINGS
+        return bool(value)
+
+    @staticmethod
+    def _coerce_threshold(value: Any) -> float | None:
+        try:
+            threshold = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not 0.0 <= threshold <= 1.0:
+            return None
+        return threshold
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Register the EntangledHome conversation agent for ``entry``."""
@@ -598,6 +678,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         secondary_signal_provider=secondary_signals,
         telemetry_recorder=telemetry,
         guardrail_config=entry_data.get("guardrail_config"),
+        intents_config=entry_data.get("intents_config"),
     )
 
     entry_data["conversation_handler"] = handler

@@ -85,6 +85,7 @@ class InterpretRequest(BaseModel):
 
     utterance: str
     catalog: CatalogPayload
+    intents: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class InterpretResponse(BaseModel):

@@ -14,7 +14,9 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
     from custom_components.entangledhome.const import (
         DEFAULT_PLEX_SYNC,
         DEFAULT_REFRESH_INTERVAL_MINUTES,
+        DEFAULT_INTENTS_CONFIG,
         OPT_ENABLE_PLEX_SYNC,
+        OPT_INTENTS_CONFIG,
         OPT_REFRESH_INTERVAL_MINUTES,
     )
 
@@ -27,6 +29,7 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
 
         assert defaults[OPT_REFRESH_INTERVAL_MINUTES] == DEFAULT_REFRESH_INTERVAL_MINUTES
         assert defaults[OPT_ENABLE_PLEX_SYNC] is DEFAULT_PLEX_SYNC
+        assert defaults[OPT_INTENTS_CONFIG] == DEFAULT_INTENTS_CONFIG
 
     asyncio.run(_run())
 

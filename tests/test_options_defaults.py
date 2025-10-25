@@ -86,22 +86,24 @@ def test_ensure_default_options_preserves_existing_values() -> None:
 
     from custom_components.entangledhome import _ensure_default_options
     from custom_components.entangledhome.const import (
-            OPT_CONFIDENCE_THRESHOLD,
-            OPT_ENABLE_CATALOG_SYNC,
-            OPT_ENABLE_CONFIDENCE_GATE,
-            OPT_ENABLE_PLEX_SYNC,
-            OPT_NIGHT_MODE_ENABLED,
-            OPT_NIGHT_MODE_END_HOUR,
-            OPT_NIGHT_MODE_START_HOUR,
-            OPT_DEDUPLICATION_WINDOW,
-            OPT_REFRESH_INTERVAL_MINUTES,
-            OPT_ADAPTER_SHARED_SECRET,
-            OPT_ALLOWED_HOURS,
-            OPT_DANGEROUS_INTENTS,
-            OPT_DISABLED_INTENTS,
-            OPT_INTENT_THRESHOLDS,
-            OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
-        )
+        OPT_CONFIDENCE_THRESHOLD,
+        OPT_ENABLE_CATALOG_SYNC,
+        OPT_ENABLE_CONFIDENCE_GATE,
+        OPT_ENABLE_PLEX_SYNC,
+        OPT_NIGHT_MODE_ENABLED,
+        OPT_NIGHT_MODE_END_HOUR,
+        OPT_NIGHT_MODE_START_HOUR,
+        OPT_DEDUPLICATION_WINDOW,
+        OPT_REFRESH_INTERVAL_MINUTES,
+        OPT_ADAPTER_SHARED_SECRET,
+        OPT_ALLOWED_HOURS,
+        OPT_DANGEROUS_INTENTS,
+        OPT_DISABLED_INTENTS,
+        OPT_INTENT_THRESHOLDS,
+        OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+        OPT_INTENTS_CONFIG,
+        DEFAULT_INTENTS_CONFIG,
+    )
 
     hass = SimpleNamespace()
 
@@ -129,6 +131,7 @@ def test_ensure_default_options_preserves_existing_values() -> None:
             OPT_DANGEROUS_INTENTS: [],
             OPT_ALLOWED_HOURS: {},
             OPT_RECENT_COMMAND_WINDOW_OVERRIDES: {},
+            OPT_INTENTS_CONFIG: DEFAULT_INTENTS_CONFIG,
         },
     )
 

@@ -120,6 +120,10 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch):
             "scenes": [],
             "plex_media": [],
         },
+        intents={
+            "turn_on": {"enabled": True, "slots": ["area", "targets"], "threshold": 0.6},
+            "scene_activate": {"enabled": False, "slots": ["scene"]},
+        },
     )
 
     response = _post_with_signature(
@@ -133,6 +137,9 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch):
     assert body.params["reason"] == "adapter unavailable"
     assert fake_embeddings.calls == [["turn on the living room lights"]]
     assert [call[0] for call in fake_qdrant.search_calls] == ["ha_entities", "plex_media"]
+    assert fake_model.calls
+    _, prompt, _ = fake_model.calls[0]
+    assert prompt.get("intents") == request_payload.intents
 
 
 def test_interpret_streaming_cache_and_metrics(monkeypatch):
@@ -238,6 +245,10 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
             "scenes": [],
             "plex_media": [],
         },
+        intents={
+            "turn_on": {"enabled": True, "slots": ["area", "targets"], "threshold": 0.5},
+            "turn_off": {"enabled": False, "slots": ["area"]},
+        },
     )
 
     first_response = _post_with_signature(
@@ -249,6 +260,8 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     assert body.intent == "lights_on"
     assert body.area == "living_room"
     assert body.params == {"stage": 2}
+    assert fake_model.calls
+    assert fake_model.calls[0][1].get("intents") == request_payload.intents
 
     assert len(fake_embeddings.calls) == 1
     assert [call[0] for call in fake_qdrant.search_calls] == [

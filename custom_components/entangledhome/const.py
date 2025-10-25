@@ -19,6 +19,13 @@ DEFAULT_DISABLED_INTENTS: tuple[str, ...] = ()
 DEFAULT_DANGEROUS_INTENTS: tuple[str, ...] = ()
 DEFAULT_ALLOWED_HOURS: dict[str, list[int]] = {}
 DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES: dict[str, float] = {}
+DEFAULT_INTENTS_CONFIG: dict[str, dict[str, object]] = {
+    "turn_on": {"enabled": True, "slots": ["targets", "area"]},
+    "turn_off": {"enabled": True, "slots": ["targets", "area"]},
+    "scene_activate": {"enabled": True, "slots": ["scene", "area"]},
+    "media_play": {"enabled": True, "slots": ["media", "targets"]},
+    "set_brightness": {"enabled": True, "slots": ["targets", "brightness", "area"]},
+}
 
 CONF_ADAPTER_URL = "adapter_url"
 CONF_QDRANT_HOST = "qdrant_host"
@@ -42,6 +49,7 @@ OPT_DISABLED_INTENTS = "disabled_intents"
 OPT_DANGEROUS_INTENTS = "dangerous_intents"
 OPT_ALLOWED_HOURS = "intent_allowed_hours"
 OPT_RECENT_COMMAND_WINDOW_OVERRIDES = "intent_recent_command_windows"
+OPT_INTENTS_CONFIG = "intents_config"
 
 DEFAULT_OPTION_VALUES = (
     (OPT_ENABLE_CATALOG_SYNC, DEFAULT_CATALOG_SYNC),
@@ -59,4 +67,5 @@ DEFAULT_OPTION_VALUES = (
     (OPT_DANGEROUS_INTENTS, DEFAULT_DANGEROUS_INTENTS),
     (OPT_ALLOWED_HOURS, DEFAULT_ALLOWED_HOURS),
     (OPT_RECENT_COMMAND_WINDOW_OVERRIDES, DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES),
+    (OPT_INTENTS_CONFIG, DEFAULT_INTENTS_CONFIG),
 )

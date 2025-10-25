@@ -14,6 +14,8 @@ from custom_components.entangledhome.const import (
     CONF_QDRANT_HOST,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
+    OPT_INTENTS_CONFIG,
+    DEFAULT_INTENTS_CONFIG,
 )
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
@@ -76,6 +78,14 @@ async def test_setup_entry_stashes_shared_services(monkeypatch: pytest.MonkeyPat
     payload = await catalog_provider()
     assert isinstance(payload, CatalogPayload)
 
+    intents_config = domain_data.get("intents_config")
+    assert isinstance(intents_config, dict)
+    for intent, default_config in DEFAULT_INTENTS_CONFIG.items():
+        assert intent in intents_config
+        merged = intents_config[intent]
+        assert merged["enabled"] == default_config.get("enabled", True)
+        assert merged["slots"] == default_config.get("slots", [])
+
 
 async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatch) -> None:
     """Conversation setup should register the handler and execute intents."""
@@ -99,11 +109,18 @@ async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatc
 
     interpret_calls: list[tuple[str, CatalogPayload]] = []
 
-    async def fake_interpret(utterance: str, catalog: CatalogPayload) -> InterpretResponse:
-        interpret_calls.append((utterance, catalog))
+    async def fake_interpret(
+        utterance: str, catalog: CatalogPayload, *, intents: dict[str, dict[str, object]]
+    ) -> InterpretResponse:
+        interpret_calls.append((utterance, catalog, intents))
         return InterpretResponse(intent="turn_on", params={}, confidence=0.9)
 
     domain_data["adapter_client"].interpret = fake_interpret  # type: ignore[assignment]
+
+    domain_data["intents_config"] = {
+        "turn_on": {"enabled": True, "slots": ["area", "targets"], "threshold": 0.65},
+        "turn_off": {"enabled": False, "slots": ["area"]},
+    }
 
     execute_calls: list[tuple[HomeAssistant, InterpretResponse, CatalogPayload]] = []
 
@@ -127,7 +144,31 @@ async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatc
     assert result.success is True
     assert interpret_calls and interpret_calls[0][0] == "turn on the lights"
     assert execute_calls and execute_calls[0][2] is interpret_calls[0][1]
+    intents_payload = interpret_calls[0][2]
+    assert intents_payload == {"turn_on": {"slots": ["area", "targets"], "threshold": 0.65}}
     assert getattr(domain_data["adapter_client"], "_shared_secret") == "initial-token"
+
+
+async def test_setup_entry_normalizes_intent_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Intents config should merge defaults and normalize overrides."""
+
+    hass, entry = _build_hass_and_entry()
+    entry.options[OPT_INTENTS_CONFIG] = {
+        "turn_on": {"enabled": False, "slots": ["targets", "area", "area"], "threshold": "0.8"},
+        "custom_intent": {"enabled": True, "slots": ["foo", "bar", "foo"], "threshold": 0.55},
+    }
+
+    assert await integration.async_setup_entry(hass, entry)
+
+    intents_config = hass.data[DOMAIN][entry.entry_id]["intents_config"]
+    assert intents_config["turn_on"]["enabled"] is False
+    assert intents_config["turn_on"]["slots"] == DEFAULT_INTENTS_CONFIG["turn_on"]["slots"]
+    assert intents_config["turn_on"]["threshold"] == pytest.approx(0.8)
+
+    custom = intents_config["custom_intent"]
+    assert custom["enabled"] is True
+    assert custom["slots"] == ["foo", "bar"]
+    assert custom["threshold"] == pytest.approx(0.55)
 
 
 async def test_conversation_unload_removes_agent(monkeypatch: pytest.MonkeyPatch) -> None:

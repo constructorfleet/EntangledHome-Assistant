@@ -18,14 +18,16 @@
           "night_mode_end_hour": "Night mode end hour",
           "deduplication_window_seconds": "Deduplication window (seconds)",
           "refresh_interval_minutes": "Catalog refresh cadence (minutes)",
-          "enable_plex_sync": "Sync Plex library"
+          "enable_plex_sync": "Sync Plex library",
+          "intents_config": "Intent routing configuration"
         },
         "data_description": {
           "confidence_threshold": "Allow adapter intents only when the confidence is between 0.0 and 1.0 (default 0.7).",
           "night_mode_start_hour": "Hour (0-23) when stricter guardrails begin, defaults to 23.",
           "night_mode_end_hour": "Hour (0-23) when night mode guardrails lift, defaults to 6.",
           "deduplication_window_seconds": "Ignore duplicate intents received within this many seconds (default 2).",
-          "refresh_interval_minutes": "How often to sync the catalog to Qdrant in minutes (default 5)."
+          "refresh_interval_minutes": "How often to sync the catalog to Qdrant in minutes (default 5).",
+          "intents_config": "JSON object of intent names mapped to enabled state, slot hints, and thresholds."
         }
       }
     }
@@ -45,14 +47,16 @@
           "night_mode_enabled": "Enable night mode guardrail",
           "night_mode_start_hour": "Night mode start hour",
           "night_mode_end_hour": "Night mode end hour",
-          "deduplication_window_seconds": "Deduplication window (seconds)"
+          "deduplication_window_seconds": "Deduplication window (seconds)",
+          "intents_config": "Intent routing configuration"
         },
         "data_description": {
           "confidence_threshold": "Allow adapter intents only when the confidence is between 0.0 and 1.0 (default 0.7).",
           "night_mode_start_hour": "Hour (0-23) when stricter guardrails begin, defaults to 23.",
           "night_mode_end_hour": "Hour (0-23) when night mode guardrails lift, defaults to 6.",
           "deduplication_window_seconds": "Ignore duplicate intents received within this many seconds (default 2).",
-          "refresh_interval_minutes": "How often to sync the catalog to Qdrant in minutes (default 5)."
+          "refresh_interval_minutes": "How often to sync the catalog to Qdrant in minutes (default 5).",
+          "intents_config": "JSON object of intent names mapped to enabled state, slot hints, and thresholds."
         }
       }
     }
