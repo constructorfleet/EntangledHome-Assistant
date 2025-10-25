@@ -36,7 +36,9 @@ class ConfigFlow:
     def async_show_form(self, *, step_id: str, data_schema: Any) -> dict[str, Any]:
         return {"type": "form", "step_id": step_id, "data_schema": data_schema}
 
-    async def async_create_entry(self, *, title: str, data: dict[str, Any], options: dict[str, Any]):
+    async def async_create_entry(
+        self, *, title: str, data: dict[str, Any], options: dict[str, Any]
+    ):
         return {"type": "create_entry", "title": title, "data": data, "options": options}
 
 

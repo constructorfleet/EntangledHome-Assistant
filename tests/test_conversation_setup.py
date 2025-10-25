@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -19,9 +19,8 @@ from custom_components.entangledhome.const import (
 )
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
-
-from tests.stubs.homeassistant.config_entries import ConfigEntry
-from tests.stubs.homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 
 pytestmark = pytest.mark.asyncio
@@ -31,19 +30,19 @@ def _build_hass_and_entry() -> tuple[HomeAssistant, ConfigEntry]:
     """Return a stubbed Home Assistant instance and config entry."""
 
     hass = HomeAssistant()
-    hass.config_entries = SimpleNamespace(
-        async_update_entry=lambda entry, options: entry.__setattr__("options", options)
-    )
 
-    entry = ConfigEntry(
-        entry_id="entry-id",
-        data={
-            CONF_ADAPTER_URL: "http://adapter.local/interpret",
-            CONF_QDRANT_HOST: "qdrant.local",
-            CONF_QDRANT_API_KEY: "super-secret",
-        },
-        options={OPT_ADAPTER_SHARED_SECRET: "initial-token"},
-    )
+    def _update_entry(entry: ConfigEntry, *, options: dict[str, Any] | None = None) -> None:
+        if options is not None:
+            entry.options = dict(options)
+
+    hass.config_entries.async_update_entry = _update_entry  # type: ignore[method-assign]
+
+    entry = ConfigEntry(entry_id="entry-id", options={OPT_ADAPTER_SHARED_SECRET: "initial-token"})
+    entry.data = {  # type: ignore[attr-defined]
+        CONF_ADAPTER_URL: "http://adapter.local/interpret",
+        CONF_QDRANT_HOST: "qdrant.local",
+        CONF_QDRANT_API_KEY: "super-secret",
+    }
 
     hass.data.setdefault(DOMAIN, {})
     return hass, entry
@@ -97,7 +96,7 @@ async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatc
     telemetry = TelemetryRecorder()
     domain_data["telemetry"] = telemetry
 
-    captured_agent: list[tuple[HomeAssistant, str, object]] = []
+    captured_agent: list[tuple[HomeAssistant, str, conv.EntangledHomeConversationHandler]] = []
 
     async def fake_set_agent(hass_obj: HomeAssistant, agent_id: str, agent: object) -> None:
         captured_agent.append((hass_obj, agent_id, agent))
@@ -107,7 +106,7 @@ async def test_conversation_setup_registers_agent(monkeypatch: pytest.MonkeyPatc
 
     domain_data["catalog_provider"] = fake_catalog_provider
 
-    interpret_calls: list[tuple[str, CatalogPayload]] = []
+    interpret_calls: list[tuple[str, CatalogPayload, dict[str, dict[str, object]]]] = []
 
     async def fake_interpret(
         utterance: str, catalog: CatalogPayload, *, intents: dict[str, dict[str, object]]

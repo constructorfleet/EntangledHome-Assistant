@@ -2,14 +2,29 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import datetime
-from types import SimpleNamespace
-from typing import Callable, Iterable, Sequence
+from types import ModuleType
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 import sys
 
+import pytest
 
-try:  # pragma: no cover - import guard for optional dependency
-    import httpx  # type: ignore  # noqa: F401
-except ModuleNotFoundError:  # pragma: no cover - executed in test environment
+from custom_components.entangledhome import const as eh_const
+from custom_components.entangledhome.conversation import (
+    ConversationResult,
+    EntangledHomeConversationHandler,
+)
+from custom_components.entangledhome.intent_handlers import IntentHandlingError
+from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
+from custom_components.entangledhome.telemetry import TelemetryEvent, TelemetryRecorder
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+
+pytestmark = pytest.mark.asyncio
+
+
+if "httpx" not in sys.modules:  # pragma: no cover - executed in test environment
+
     class _StubAsyncClient:
         """Minimal httpx.AsyncClient stand-in for tests."""
 
@@ -22,24 +37,11 @@ except ModuleNotFoundError:  # pragma: no cover - executed in test environment
         async def aclose(self) -> None:
             return None
 
-    sys.modules["httpx"] = SimpleNamespace(
-        AsyncClient=_StubAsyncClient,
-        Timeout=object,
-        HTTPError=Exception,
-    )
-
-import pytest
-
-from custom_components.entangledhome import const as eh_const
-from custom_components.entangledhome.conversation import (
-    ConversationResult,
-    EntangledHomeConversationHandler,
-)
-from custom_components.entangledhome.intent_handlers import IntentHandlingError
-from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
-
-
-pytestmark = pytest.mark.asyncio
+    httpx_stub = ModuleType("httpx")
+    httpx_stub.AsyncClient = _StubAsyncClient
+    httpx_stub.Timeout = object
+    httpx_stub.HTTPError = Exception
+    sys.modules["httpx"] = httpx_stub
 
 
 class DummyAdapter:
@@ -73,11 +75,11 @@ class DummyExecutor:
     """Intent executor stub capturing invocation arguments."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[SimpleNamespace, InterpretResponse, CatalogPayload]] = []
+        self.calls: list[tuple[HomeAssistant, InterpretResponse, CatalogPayload]] = []
 
     async def __call__(
         self,
-        hass: SimpleNamespace,
+        hass: HomeAssistant,
         response: InterpretResponse,
         *,
         catalog: CatalogPayload,
@@ -91,11 +93,11 @@ class FailingExecutor:
 
     def __init__(self, error: Exception) -> None:
         self.error = error
-        self.calls: list[tuple[SimpleNamespace, InterpretResponse, CatalogPayload]] = []
+        self.calls: list[tuple[HomeAssistant, InterpretResponse, CatalogPayload]] = []
 
     async def __call__(
         self,
-        hass: SimpleNamespace,
+        hass: HomeAssistant,
         response: InterpretResponse,
         *,
         catalog: CatalogPayload,
@@ -105,15 +107,31 @@ class FailingExecutor:
         raise self.error
 
 
-class TelemetryStub:
+class TelemetryStub(TelemetryRecorder):
     """Telemetry recorder stub capturing record_event payloads."""
 
     def __init__(self) -> None:
+        super().__init__(max_events=10)
         self.events: list[dict[str, object]] = []
 
-    def record_event(self, **payload: object):
-        self.events.append(payload)
-        return SimpleNamespace(**payload)
+    def record_event(
+        self,
+        *,
+        utterance: str,
+        qdrant_terms: Iterable[str] | None,
+        response: InterpretResponse | dict,
+        duration_ms: float,
+        outcome: str,
+    ) -> TelemetryEvent:
+        event = super().record_event(
+            utterance=utterance,
+            qdrant_terms=list(qdrant_terms or []),
+            response=response,
+            duration_ms=duration_ms,
+            outcome=outcome,
+        )
+        self.events.append(event.model_dump(mode="json"))
+        return event
 
 
 class MonotonicStub:
@@ -128,23 +146,35 @@ class MonotonicStub:
         return self._values.popleft()
 
 
+class ExecutorProtocol(Protocol):
+    async def __call__(
+        self,
+        hass: HomeAssistant,
+        response: InterpretResponse,
+        *,
+        catalog: CatalogPayload,
+        **kwargs: object,
+    ) -> None:
+        """Signature for executor stubs."""
+
+
 def _handler(
     *,
     adapter: DummyAdapter,
-    executor: DummyExecutor,
+    executor: ExecutorProtocol,
     options: dict[str, object],
-    guardrail_config: dict[str, object] | None = None,
+    guardrail_config: Mapping[str, Any] | None = None,
     monotonic_values: Sequence[float] | None = None,
     now: datetime | None = None,
-    telemetry: TelemetryStub | None = None,
+    telemetry: TelemetryRecorder | None = None,
     secondary_signals: Callable[[], Iterable[str]] | None = None,
 ) -> EntangledHomeConversationHandler:
-    hass = SimpleNamespace()
-    entry = SimpleNamespace(options=options)
+    hass = HomeAssistant()
+    entry = ConfigEntry(entry_id="conversation-entry", options=dict(options))
     monotonic = MonotonicStub(monotonic_values or [0.0, 10.0, 20.0])
     now_provider = (lambda: now) if now is not None else (lambda: datetime(2024, 1, 1, 12, 0, 0))
 
-    handler_kwargs: dict[str, object] = {}
+    handler_kwargs: dict[str, Any] = {}
     if guardrail_config is not None:
         handler_kwargs["guardrail_config"] = guardrail_config
 

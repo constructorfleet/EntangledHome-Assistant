@@ -31,7 +31,9 @@ def build_catalog_payload(
     )
 
 
-def serialize_catalog_for_qdrant(payload: CatalogPayload | Mapping[str, object]) -> dict[str, list[dict]]:
+def serialize_catalog_for_qdrant(
+    payload: CatalogPayload | Mapping[str, object],
+) -> dict[str, list[dict]]:
     """Validate and serialize catalog data before Qdrant upserts."""
 
     if isinstance(payload, CatalogPayload):

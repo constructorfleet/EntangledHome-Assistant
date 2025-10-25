@@ -143,7 +143,9 @@ async def test_ingest_plex_pushes_vectors(monkeypatch):
     )
 
     assert isinstance(payload, CatalogPayload)
-    assert embed_calls == [["Example Movie | movie | 2020 | collection:Favorites | Adventure | Lead Actor"]]
+    assert embed_calls == [
+        ["Example Movie | movie | 2020 | collection:Favorites | Adventure | Lead Actor"]
+    ]
     assert upsert_calls and upsert_calls[0][0] == "plex_media"
     point = upsert_calls[0][1][0]
     assert point["id"] == "plex::123"

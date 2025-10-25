@@ -17,6 +17,7 @@ __all__ = [
     "InterpretResponse",
 ]
 
+
 class CatalogArea(BaseModel):
     """Descriptor for a Home Assistant area."""
 

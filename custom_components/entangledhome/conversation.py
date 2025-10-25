@@ -68,8 +68,8 @@ class GuardrailBundle:
         mapping: Mapping[str, Any] = data or {}
 
         thresholds: dict[str, float] = {}
-        raw_thresholds = mapping.get(OPT_INTENT_THRESHOLDS, {})
-        if isinstance(raw_thresholds, Mapping):
+        raw_thresholds = cls._mapping_from(mapping.get(OPT_INTENT_THRESHOLDS, {}))
+        if raw_thresholds:
             for intent, value in raw_thresholds.items():
                 try:
                     thresholds[str(intent)] = float(value)
@@ -80,16 +80,16 @@ class GuardrailBundle:
         dangerous = cls._coerce_str_set(mapping.get(OPT_DANGEROUS_INTENTS, ()))
 
         allowed: dict[str, tuple[int, int]] = {}
-        raw_allowed = mapping.get(OPT_ALLOWED_HOURS, {})
-        if isinstance(raw_allowed, Mapping):
+        raw_allowed = cls._mapping_from(mapping.get(OPT_ALLOWED_HOURS, {}))
+        if raw_allowed:
             for intent, value in raw_allowed.items():
                 hours = cls._coerce_hours(value)
                 if hours is not None:
                     allowed[str(intent)] = hours
 
         windows: dict[str, float] = {}
-        raw_windows = mapping.get(OPT_RECENT_COMMAND_WINDOW_OVERRIDES, {})
-        if isinstance(raw_windows, Mapping):
+        raw_windows = cls._mapping_from(mapping.get(OPT_RECENT_COMMAND_WINDOW_OVERRIDES, {}))
+        if raw_windows:
             for intent, value in raw_windows.items():
                 try:
                     window = float(value)
@@ -141,14 +141,26 @@ class GuardrailBundle:
     @staticmethod
     def _coerce_str_set(value: Any) -> set[str]:
         if isinstance(value, str):
-            items = [item.strip() for item in value.split(",") if item.strip()]
-            return set(items)
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                items = [item.strip() for item in value.split(",") if item.strip()]
+                return set(items)
+            else:
+                value = parsed
         if isinstance(value, (list, tuple, set)):
             return {str(item).strip() for item in value if str(item).strip()}
         return set()
 
     @staticmethod
     def _coerce_hours(value: Any) -> tuple[int, int] | None:
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return None
+            else:
+                value = parsed
         if isinstance(value, Mapping):
             start = value.get("start")
             end = value.get("end")
@@ -164,6 +176,18 @@ class GuardrailBundle:
         if not 0 <= start_hour <= 23 or not 0 <= end_hour <= 23:
             return None
         return start_hour, end_hour
+
+    @staticmethod
+    def _mapping_from(value: Any) -> Mapping[str, Any]:
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+            else:
+                value = parsed
+        return value if isinstance(value, Mapping) else {}
+
 
 @dataclass
 class ConversationResult:
@@ -212,9 +236,7 @@ class EntangledHomeConversationHandler:
 
         self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
 
-    def set_intents_config(
-        self, intents_config: Mapping[str, Mapping[str, Any]] | None
-    ) -> None:
+    def set_intents_config(self, intents_config: Mapping[str, Mapping[str, Any]] | None) -> None:
         """Update the intents metadata passed to the adapter."""
 
         self._intents_config = self._sanitize_intents(intents_config)
@@ -337,11 +359,7 @@ class EntangledHomeConversationHandler:
             if inspect.isawaitable(result):
                 await result
         except IntentHandlingError as exc:
-            message = (
-                f"Intent execution failed: {exc}"
-                if str(exc)
-                else "Intent execution failed."
-            )
+            message = f"Intent execution failed: {exc}" if str(exc) else "Intent execution failed."
             return self._executor_failure_result(
                 utterance=utterance,
                 response=response,
@@ -393,9 +411,7 @@ class EntangledHomeConversationHandler:
             return await provider_result  # type: ignore[return-value]
         return provider_result  # type: ignore[return-value]
 
-    def _confidence_blocked(
-        self, response: InterpretResponse, options: Mapping[str, Any]
-    ) -> bool:
+    def _confidence_blocked(self, response: InterpretResponse, options: Mapping[str, Any]) -> bool:
         if not options.get(OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE):
             return False
         threshold = float(options.get(OPT_CONFIDENCE_THRESHOLD, DEFAULT_CONFIDENCE_THRESHOLD))
@@ -716,15 +732,14 @@ def _resolve_adapter(entry: ConfigEntry, entry_data: dict[str, Any]) -> AdapterC
     return adapter
 
 
-def _resolve_catalog_provider(
-    entry: ConfigEntry, entry_data: dict[str, Any]
-) -> CatalogProvider:
+def _resolve_catalog_provider(entry: ConfigEntry, entry_data: dict[str, Any]) -> CatalogProvider:
     provider = entry_data.get("catalog_provider")
     if callable(provider):
         return provider  # type: ignore[return-value]
 
     coordinator = entry_data.get("coordinator")
     if coordinator is not None:
+
         async def _coordinator_catalog() -> CatalogPayload:
             exporter = coordinator._build_exporter(getattr(entry, "options", {}))
             return await exporter.run_once()
