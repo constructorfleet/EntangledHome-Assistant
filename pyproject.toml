@@ -41,3 +41,12 @@ dev = [
     "uvicorn[standard]>=0.25.0",
     "pre-commit>=3.8.0",
 ]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"

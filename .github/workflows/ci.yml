@@ -10,6 +10,9 @@ on:
 env:
   UV_CACHE_DIR: .uv-cache
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
