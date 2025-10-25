@@ -52,6 +52,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
+      - name: Fix dependencies
+        run: |
+          uv pip install -U "pytest>=8.3.3" "pytest-cov>=5.0" "coverage[toml]>=7.6" "pluggy>=1.5"
+
       - name: Run pytest (Home Assistant)
         run: |
           uv run pytest tests --cov=custom_components.entangledhome --cov=adapter_service --cov-report=xml:coverage-home-assistant.xml --cov-report=term
@@ -80,6 +84,10 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --all-extras --dev
+
+      - name: Fix dependencies
+        run: |
+          uv pip install -U "pytest>=8.3.3" "pytest-cov>=5.0" "coverage[toml]>=7.6" "pluggy>=1.5"
 
       - name: Run pytest (Adapter Service)
         run: |
