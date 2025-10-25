@@ -1,0 +1,18 @@
+# Example EntangledHome configuration
+entangledhome:
+  adapter_url: "http://adapter:8080/interpret"
+  qdrant:
+    host: "qdrant"
+    port: 6333
+    api_key: !secret qdrant_api_key
+  guardrails:
+    confidence_threshold: 0.65
+    secondary_signals:
+      presence:
+        enabled: true
+        entities:
+          - person.alice
+          - person.bob
+      voice:
+        enabled: true
+        ttl_seconds: 45
