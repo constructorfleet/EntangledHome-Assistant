@@ -39,9 +39,16 @@ class FakeQdrantClient:
 
 
 class FakeModelClient:
-    def __init__(self, responses: list[InterpretResponse]) -> None:
-        self._responses = responses
+    def __init__(
+        self,
+        responses: list[Any],
+        *,
+        repair_responses: list[InterpretResponse] | None = None,
+    ) -> None:
+        self._responses = list(responses)
         self.calls: list[tuple[str, dict[str, Any], float]] = []
+        self.repair_calls: list[tuple[str, dict[str, Any], Any]] = []
+        self._repair_responses = list(repair_responses or [])
 
     async def stream(
         self,
@@ -53,6 +60,18 @@ class FakeModelClient:
         self.calls.append((utterance, prompt, threshold))
         for response in self._responses:
             yield response
+
+    async def repair(
+        self,
+        *,
+        utterance: str,
+        prompt: dict[str, Any],
+        raw: Any,
+    ) -> InterpretResponse | None:
+        self.repair_calls.append((utterance, prompt, raw))
+        if not self._repair_responses:
+            return None
+        return self._repair_responses.pop(0)
 
 
 @pytest.fixture(autouse=True)
@@ -449,3 +468,77 @@ def test_interpret_endpoint_rejects_invalid_signature():
     response = client.post("/interpret", data=body, headers=headers)
 
     assert response.status_code == 401
+
+
+def test_interpret_endpoint_repairs_invalid_model_output(monkeypatch, qdrant_payloads, caplog):
+    import importlib
+
+    from adapter_service.schema import InterpretRequest
+
+    monkeypatch.setenv("CONFIDENCE_THRESHOLD", "0.9")
+
+    import adapter_service.main as main
+
+    importlib.reload(main)
+
+    fake_embeddings = FakeEmbeddingService()
+    fake_qdrant = FakeQdrantClient(qdrant_payloads)
+    fake_model = FakeModelClient(
+        responses=[{"intent": 7, "confidence": "not-a-number"}],
+        repair_responses=[
+            InterpretResponse(
+                intent="lights_on",
+                area="living_room",
+                params={"repaired": True},
+                confidence=0.95,
+            )
+        ],
+    )
+
+    monkeypatch.setattr(
+        main,
+        "_MODEL_STREAMER",
+        main.StreamingModel(
+            settings=main.SETTINGS,
+            embedding_service=fake_embeddings,
+            qdrant_client=fake_qdrant,
+            model_client=fake_model,
+            top_k=2,
+        ),
+        raising=False,
+    )
+
+    caplog.set_level("INFO")
+    client = TestClient(main.app)
+
+    request_payload = InterpretRequest(
+        utterance="Turn on the living room lights",
+        catalog={
+            "areas": [
+                {
+                    "area_id": "living_room",
+                    "name": "Living Room",
+                    "aliases": [],
+                }
+            ],
+            "entities": [],
+            "scenes": [],
+            "plex_media": [],
+        },
+    )
+
+    response = _post_with_signature(
+        client, request_payload.model_dump(mode="json"), SHARED_SECRET
+    )
+
+    assert response.status_code == 200
+    body = InterpretResponse.model_validate(response.json())
+    assert body.intent == "lights_on"
+    assert body.area == "living_room"
+    assert body.params["repaired"] is True
+    assert fake_model.repair_calls
+
+    log_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "validation_failed" in log_text
+    assert "lights_on" in log_text
+    assert "duration_ms" in log_text

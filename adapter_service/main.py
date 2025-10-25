@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import logging
 import os
 import time
 from collections import OrderedDict
@@ -13,6 +14,8 @@ from typing import Any, AsyncIterator, Callable, Final, Mapping, Sequence
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from jsonschema import Draft7Validator, ValidationError
+from pydantic import ValidationError as PydanticValidationError
 from starlette import status
 
 from .embeddings import EmbeddingService
@@ -20,6 +23,7 @@ from .model import ModelClient
 from .schema import CatalogPayload, InterpretRequest, InterpretResponse
 
 SIGNATURE_HEADER = "X-Entangled-Signature"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -122,7 +126,31 @@ def _fallback_response(utterance: str, *, reason: str) -> InterpretResponse:
         intent="noop",
         params={"reason": reason, "utterance": utterance},
         confidence=0.0,
+        adapter_error=reason,
     )
+
+
+INTERPRET_RESPONSE_SCHEMA: Final[dict[str, Any]] = InterpretResponse.model_json_schema(
+    mode="validation"
+)
+RESPONSE_VALIDATOR = Draft7Validator(INTERPRET_RESPONSE_SCHEMA)
+
+
+def _extract_retrieved_ids(retrieved: Mapping[str, Any]) -> dict[str, list[Any]]:
+    """Return collection IDs from retrieved payloads for logging."""
+
+    ids: dict[str, list[Any]] = {}
+    for collection in ("ha_entities", "plex_media"):
+        entries = retrieved.get(collection, []) if isinstance(retrieved, Mapping) else []
+        if isinstance(entries, Sequence):
+            ids[collection] = [
+                item.get("id")
+                for item in entries
+                if isinstance(item, Mapping) and item.get("id") is not None
+            ]
+        else:
+            ids[collection] = []
+    return ids
 
 
 _ENTITY_FIELDS: Final[tuple[str, ...]] = (
@@ -419,6 +447,8 @@ class StreamingModel:
             model=settings.model or "",
             timeout=settings.model_timeout_s,
         )
+        self._validator = Draft7Validator(INTERPRET_RESPONSE_SCHEMA)
+        self._last_prompt: dict[str, Any] | None = None
 
     async def stream(
         self,
@@ -427,6 +457,7 @@ class StreamingModel:
         intents: Mapping[str, Mapping[str, Any]] | None,
         settings: Settings,
     ) -> AsyncIterator[InterpretResponse]:
+        self._last_prompt = None
         try:
             vector = await self._embed_utterance(utterance)
             retrieved = await self._retrieve_catalog(vector)
@@ -436,14 +467,114 @@ class StreamingModel:
                 "retrieved": retrieved,
                 "intents": _serialize_intents(intents),
             }
-            async for response in self._model.stream(
+            self._last_prompt = prompt
+        except Exception:
+            LOGGER.exception("interpret_stream_setup_failed utterance=%s", utterance)
+            return
+
+        try:
+            async for candidate in self._model.stream(
                 utterance=utterance,
                 prompt=prompt,
                 threshold=settings.confidence_threshold,
             ):
+                response = await self._coerce_to_response(
+                    candidate,
+                    utterance=utterance,
+                    prompt=prompt,
+                )
+                if response is None:
+                    continue
                 yield response
         except Exception:
+            LOGGER.exception("interpret_stream_failed utterance=%s", utterance)
             return
+
+    def describe_last_prompt(self) -> dict[str, Any] | None:
+        return self._last_prompt
+
+    async def _coerce_to_response(
+        self,
+        raw: Any,
+        *,
+        utterance: str,
+        prompt: dict[str, Any],
+        allow_repair: bool = True,
+    ) -> InterpretResponse | None:
+        if isinstance(raw, InterpretResponse):
+            return raw
+
+        if isinstance(raw, Mapping):
+            data = dict(raw)
+        else:
+            LOGGER.warning(
+                "interpret_validation_failed reason=non_mapping payload=%r",
+                raw,
+            )
+            if allow_repair:
+                return await self._attempt_repair(
+                    utterance=utterance, prompt=prompt, raw=raw
+                )
+            return None
+
+        try:
+            self._validator.validate(data)
+        except ValidationError as exc:
+            LOGGER.warning(
+                "interpret_validation_failed reason=jsonschema error=%s payload=%s",
+                exc,
+                data,
+            )
+            if allow_repair:
+                return await self._attempt_repair(
+                    utterance=utterance, prompt=prompt, raw=data
+                )
+            return None
+
+        try:
+            return InterpretResponse.model_validate(data)
+        except PydanticValidationError as exc:
+            LOGGER.warning(
+                "interpret_validation_failed reason=pydantic error=%s payload=%s",
+                exc,
+                data,
+            )
+            if allow_repair:
+                return await self._attempt_repair(
+                    utterance=utterance, prompt=prompt, raw=data
+                )
+            return None
+
+    async def _attempt_repair(
+        self,
+        *,
+        utterance: str,
+        prompt: dict[str, Any],
+        raw: Any,
+    ) -> InterpretResponse | None:
+        try:
+            repaired = await self._model.repair(
+                utterance=utterance,
+                prompt=prompt,
+                raw=raw,
+            )
+        except Exception:
+            LOGGER.exception(
+                "interpret_repair_failed utterance=%s payload=%r",
+                utterance,
+                raw,
+            )
+            return None
+
+        if repaired is None:
+            return None
+
+        return await self._coerce_to_response(
+            repaired,
+            utterance=utterance,
+            prompt=prompt,
+            allow_repair=False,
+        )
 
     async def _embed_utterance(self, utterance: str) -> list[float]:
         try:
@@ -513,9 +644,16 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
         lambda: _build_catalog_slice(payload.catalog),
     )
 
+    LOGGER.info(
+        "interpret_start utterance=%s fingerprint=%s",
+        payload.utterance,
+        catalog_fingerprint,
+    )
+
     overall_start = _now()
     stream_start: float | None = None
     latest_response: InterpretResponse | None = None
+    chunks: list[InterpretResponse] = []
 
     async for chunk in _MODEL_STREAMER.stream(
         payload.utterance,
@@ -526,6 +664,7 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
         if stream_start is None:
             stream_start = _now()
         latest_response = chunk
+        chunks.append(chunk)
         if chunk.confidence >= SETTINGS.confidence_threshold:
             break
 
@@ -542,6 +681,27 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
 
     total_duration_ms = max((end_time - overall_start) * 1000, 0.0)
     _record_metric(total_duration_ms, stream_duration_ms)
+
+    prompt_snapshot = _MODEL_STREAMER.describe_last_prompt() or {}
+    retrieved_map = (
+        prompt_snapshot.get("retrieved", {})
+        if isinstance(prompt_snapshot, Mapping)
+        else {}
+    )
+    retrieved_ids = _extract_retrieved_ids(retrieved_map)
+    chunk_payloads = [chunk.model_dump(mode="json") for chunk in chunks]
+    final_payload = latest_response.model_dump(mode="json")
+
+    LOGGER.info(
+        "interpret_complete utterance=%s fingerprint=%s duration_ms=%.3f stream_ms=%.3f retrieved=%s model_chunks=%s final=%s",
+        payload.utterance,
+        catalog_fingerprint,
+        total_duration_ms,
+        stream_duration_ms,
+        retrieved_ids,
+        chunk_payloads,
+        final_payload,
+    )
 
     return latest_response
 
