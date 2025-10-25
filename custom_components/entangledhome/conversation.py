@@ -276,6 +276,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     adapter = _resolve_adapter(entry, entry_data)
     catalog_provider = _resolve_catalog_provider(entry, entry_data)
+    secondary_signals = _resolve_secondary_signal_provider(entry_data)
     telemetry = entry_data.get(DATA_TELEMETRY)
 
     handler = EntangledHomeConversationHandler(
@@ -284,6 +285,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         adapter_client=adapter,
         catalog_provider=catalog_provider,
         intent_executor=async_execute_intent,
+        secondary_signal_provider=secondary_signals,
         telemetry_recorder=telemetry,
     )
 
@@ -343,3 +345,12 @@ def _resolve_catalog_provider(
 
     entry_data["catalog_provider"] = _empty_catalog
     return _empty_catalog
+
+
+def _resolve_secondary_signal_provider(
+    entry_data: dict[str, Any],
+) -> Callable[[], Iterable[str]]:
+    provider = entry_data.get("secondary_signal_provider")
+    if callable(provider):
+        return provider  # type: ignore[return-value]
+    return lambda: ()

@@ -38,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     from .coordinator import EntangledHomeCoordinator
+    from .secondary_signals import build_secondary_signal_provider
     from .telemetry import TelemetryRecorder
 
     domain_entry: dict[str, Any] = {}
@@ -51,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_entry["embed_texts"] = _build_embedder(entry)
     domain_entry["qdrant_upsert"] = _build_qdrant_upsert(entry)
     domain_entry["catalog_provider"] = _build_catalog_provider(coordinator)
+    domain_entry["secondary_signal_provider"] = build_secondary_signal_provider(hass, entry)
 
     hass.data[DOMAIN][entry.entry_id] = domain_entry
 
