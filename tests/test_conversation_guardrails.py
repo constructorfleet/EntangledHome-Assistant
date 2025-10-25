@@ -4,6 +4,29 @@ from collections import deque
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Iterable, Sequence
+import sys
+
+
+try:  # pragma: no cover - import guard for optional dependency
+    import httpx  # type: ignore  # noqa: F401
+except ModuleNotFoundError:  # pragma: no cover - executed in test environment
+    class _StubAsyncClient:
+        """Minimal httpx.AsyncClient stand-in for tests."""
+
+        def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - trivial stub
+            pass
+
+        async def post(self, *args, **kwargs):
+            raise NotImplementedError
+
+        async def aclose(self) -> None:
+            return None
+
+    sys.modules["httpx"] = SimpleNamespace(
+        AsyncClient=_StubAsyncClient,
+        Timeout=object,
+        HTTPError=Exception,
+    )
 
 import pytest
 
@@ -20,6 +43,7 @@ from custom_components.entangledhome.conversation import (
     ConversationResult,
     EntangledHomeConversationHandler,
 )
+from custom_components.entangledhome.intent_handlers import IntentHandlingError
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 
 
@@ -61,6 +85,35 @@ class DummyExecutor:
         self.calls.append((hass, response, catalog))
 
 
+class FailingExecutor:
+    """Executor stub that raises a provided exception."""
+
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls: list[tuple[SimpleNamespace, InterpretResponse, CatalogPayload]] = []
+
+    async def __call__(
+        self,
+        hass: SimpleNamespace,
+        response: InterpretResponse,
+        *,
+        catalog: CatalogPayload,
+    ) -> None:
+        self.calls.append((hass, response, catalog))
+        raise self.error
+
+
+class TelemetryStub:
+    """Telemetry recorder stub capturing record_event payloads."""
+
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def record_event(self, **payload: object):
+        self.events.append(payload)
+        return SimpleNamespace(**payload)
+
+
 class MonotonicStub:
     """Deterministic monotonic clock for dedupe tests."""
 
@@ -80,6 +133,7 @@ def _handler(
     options: dict[str, object],
     monotonic_values: Sequence[float] | None = None,
     now: datetime | None = None,
+    telemetry: TelemetryStub | None = None,
 ) -> EntangledHomeConversationHandler:
     hass = SimpleNamespace()
     entry = SimpleNamespace(options=options)
@@ -94,6 +148,7 @@ def _handler(
         intent_executor=executor,
         monotonic_source=monotonic,
         now_provider=now_provider,
+        telemetry_recorder=telemetry,
     )
 
 
@@ -257,3 +312,46 @@ async def test_adapter_client_receives_shared_secret_from_options() -> None:
 
     assert result.success is True
     assert adapter.shared_secret == shared_secret
+
+
+async def test_executor_errors_return_failure_and_record_telemetry() -> None:
+    """Executor failures should bubble up as graceful responses without dedupe."""
+
+    response = InterpretResponse(
+        intent="scene_activate",
+        area="living_room",
+        targets=["scene.living_room_movie"],
+        params={"scene": "movie"},
+        confidence=0.95,
+    )
+    adapter = DummyAdapter([response, response])
+    error = IntentHandlingError("adapter refused")
+    executor = FailingExecutor(error)
+    telemetry = TelemetryStub()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            OPT_ENABLE_CONFIDENCE_GATE: False,
+            OPT_CONFIDENCE_THRESHOLD: 0.5,
+            OPT_NIGHT_MODE_ENABLED: False,
+            OPT_NIGHT_MODE_START_HOUR: 23,
+            OPT_NIGHT_MODE_END_HOUR: 6,
+            OPT_DEDUPLICATION_WINDOW: 2.0,
+        },
+        monotonic_values=[0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+        telemetry=telemetry,
+    )
+
+    first = await handler.async_handle("activate movie scene")
+    second = await handler.async_handle("activate movie scene")
+
+    assert first.success is False
+    assert second.success is False
+    assert "failed" in first.response.lower()
+    assert "failed" in second.response.lower()
+    assert handler._dedupe == {}
+    assert len(executor.calls) == 2
+    assert len(adapter.calls) == 2
+    assert len(telemetry.events) == 2
+    assert all(event["outcome"] == "failed" for event in telemetry.events)

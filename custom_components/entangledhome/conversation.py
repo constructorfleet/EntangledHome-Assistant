@@ -33,7 +33,7 @@ from .const import (
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
 )
-from .intent_handlers import async_execute_intent
+from .intent_handlers import IntentHandlingError, async_execute_intent
 from .models import CatalogPayload, InterpretResponse
 from .telemetry import TelemetryRecorder
 
@@ -108,9 +108,29 @@ class EntangledHomeConversationHandler:
         if missing_signals:
             return ConversationResult(False, self._format_secondary_signal_message(missing_signals))
 
-        result = self._intent_executor(self._hass, response, catalog=catalog)
-        if inspect.isawaitable(result):
-            await result
+        try:
+            result = self._intent_executor(self._hass, response, catalog=catalog)
+            if inspect.isawaitable(result):
+                await result
+        except IntentHandlingError as exc:
+            message = (
+                f"Intent execution failed: {exc}"
+                if str(exc)
+                else "Intent execution failed."
+            )
+            return self._executor_failure_result(
+                utterance=utterance,
+                response=response,
+                start_time=start_time,
+                message=message,
+            )
+        except Exception:  # pragma: no cover - defensive guardrail
+            return self._executor_failure_result(
+                utterance=utterance,
+                response=response,
+                start_time=start_time,
+                message="Intent execution failed due to an unexpected error.",
+            )
 
         if dedupe_window > 0:
             self._dedupe[token] = now_value
@@ -228,6 +248,24 @@ class EntangledHomeConversationHandler:
             )
         except Exception:  # pragma: no cover - telemetry should not disrupt handling
             pass
+
+    def _executor_failure_result(
+        self,
+        *,
+        utterance: str,
+        response: InterpretResponse,
+        start_time: float,
+        message: str,
+    ) -> ConversationResult:
+        end_time = self._monotonic()
+        duration_ms = max(0.0, (end_time - start_time) * 1000.0)
+        self._record_telemetry(
+            utterance=utterance,
+            response=response,
+            duration_ms=duration_ms,
+            outcome="failed",
+        )
+        return ConversationResult(False, message)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
