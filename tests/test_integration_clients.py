@@ -27,7 +27,7 @@ def test_build_embedder_uses_embedding_service(monkeypatch) -> None:
     monkeypatch.setenv("EMBEDDING_MODEL", "custom-model")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(
-        "adapter_service.embeddings.EmbeddingService",
+        "custom_components.entangledhome.embeddings.EmbeddingService",
         FakeEmbeddingService,
     )
 

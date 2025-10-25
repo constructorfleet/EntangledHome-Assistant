@@ -10,6 +10,9 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Mapping, S
 
 import httpx
 
+# Re-export embeddings module so patching helpers can resolve dotted paths.
+from . import embeddings as embeddings  # noqa: F401
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -110,7 +113,7 @@ def _build_adapter_client(entry: ConfigEntry) -> AdapterClient:
 
 
 def _build_embedder(entry: ConfigEntry) -> Callable[[list[str]], Awaitable[list[list[float]]]]:
-    from adapter_service.embeddings import EmbeddingService, EmbeddingServiceError
+    from .embeddings import EmbeddingService, EmbeddingServiceError
 
     options = getattr(entry, "options", {}) or {}
 
