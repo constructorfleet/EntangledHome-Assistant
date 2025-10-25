@@ -12,6 +12,7 @@ dependencies = [
     "homeassistant>=2025.4.4",
     "httpx>=0.28.1",
     "pydantic>=2.12.3",
+    "jsonschema>=4.23.0",
 ]
 
 [project.optional-dependencies]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -14,6 +14,7 @@ from .schema import InterpretResponse
 
 
 Requester = Callable[[dict[str, Any]], AsyncIterator[str]]
+Repairer = Callable[[dict[str, Any]], Awaitable[InterpretResponse | dict[str, Any] | None]]
 
 
 class ModelClient:
@@ -27,12 +28,14 @@ class ModelClient:
         base_url: str | None = None,
         api_key: str | None = None,
         requester: Requester | None = None,
+        repairer: Repairer | None = None,
     ) -> None:
         self._model = model
         self._timeout = timeout
         self._base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self._api_key = api_key or os.getenv("OPENAI_API_KEY")
         self._requester = requester
+        self._repairer = repairer
 
     async def stream(
         self,
@@ -49,6 +52,23 @@ class ModelClient:
             yield response
             if response.confidence >= threshold:
                 break
+
+    async def repair(
+        self,
+        *,
+        utterance: str,
+        prompt: dict[str, Any],
+        raw: Any,
+    ) -> InterpretResponse | dict[str, Any] | None:
+        if self._repairer is None:
+            return None
+
+        payload = {
+            "utterance": utterance,
+            "prompt": prompt,
+            "raw": raw,
+        }
+        return await self._repairer(payload)
 
     def _build_payload(self, utterance: str, prompt: dict[str, Any]) -> dict[str, Any]:
         serialized_prompt = json.dumps(
