@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .adapter_client import AdapterClient
 from .const import (
     CONF_ADAPTER_URL,
     DATA_TELEMETRY,
@@ -15,9 +14,10 @@ from .const import (
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
 )
-from .coordinator import EntangledHomeCoordinator
-from .models import CatalogPayload
-from .telemetry import TelemetryRecorder
+if TYPE_CHECKING:
+    from .adapter_client import AdapterClient
+    from .coordinator import EntangledHomeCoordinator
+    from .models import CatalogPayload
 
 PLATFORMS: list[str] = []
 
@@ -25,6 +25,9 @@ PLATFORMS: list[str] = []
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EntangledHome from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
+    from .coordinator import EntangledHomeCoordinator
+    from .telemetry import TelemetryRecorder
 
     domain_entry: dict[str, Any] = {}
     coordinator = EntangledHomeCoordinator(hass, entry)
@@ -84,6 +87,8 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str) -> EntangledHomeCoordin
 
 
 def _build_adapter_client(entry: ConfigEntry) -> AdapterClient:
+    from .adapter_client import AdapterClient
+
     data = getattr(entry, "data", {}) or {}
     options = getattr(entry, "options", {}) or {}
 
