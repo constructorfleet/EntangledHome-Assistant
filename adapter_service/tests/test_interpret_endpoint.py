@@ -275,10 +275,12 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     )
 
     assert second_response.status_code == 200
-    assert len(build_calls) == 1
+    assert len(build_calls) == 2
     assert len(fake_qdrant.search_calls) == 4
 
-    for idx, utterance in enumerate(["movie time", "play some jazz"]):
+    baseline_calls = len(build_calls)
+    extra_utterances = ["movie time", "play some jazz"]
+    for idx, utterance in enumerate(extra_utterances, start=1):
         extra_payload = InterpretRequest(
             utterance=utterance,
             catalog=request_payload.catalog,
@@ -287,15 +289,101 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
             client, extra_payload.model_dump(mode="json"), SHARED_SECRET
         )
         assert result.status_code == 200
-        assert len(build_calls) == idx + 2
+        assert len(build_calls) == baseline_calls + idx
 
     third_response = _post_with_signature(
         client, request_payload.model_dump(mode="json"), SHARED_SECRET
     )
 
     assert third_response.status_code == 200
-    assert len(build_calls) == 4
+    assert len(build_calls) == baseline_calls + len(extra_utterances) + 1
 
+
+def test_interpret_cache_key_includes_catalog_fingerprint(monkeypatch):
+    import importlib
+
+    from adapter_service.schema import InterpretRequest
+
+    import adapter_service.main as main
+
+    importlib.reload(main)
+
+    build_calls = []
+
+    def fake_build_catalog_slice(catalog):
+        build_calls.append(catalog)
+        return {"entities": [entity.entity_id for entity in catalog.entities]}
+
+    monkeypatch.setattr(
+        main,
+        "_build_catalog_slice",
+        fake_build_catalog_slice,
+        raising=False,
+    )
+
+    fake_embeddings = FakeEmbeddingService()
+    fake_qdrant = FakeQdrantClient({"ha_entities": [], "plex_media": []})
+    fake_model = FakeModelClient(
+        [
+            InterpretResponse(
+                intent="noop",
+                params={"reason": "cache test"},
+                confidence=0.1,
+            )
+        ]
+    )
+
+    monkeypatch.setattr(
+        main,
+        "_MODEL_STREAMER",
+        main.StreamingModel(
+            settings=main.SETTINGS,
+            embedding_service=fake_embeddings,
+            qdrant_client=fake_qdrant,
+            model_client=fake_model,
+            top_k=4,
+        ),
+        raising=False,
+    )
+
+    client = TestClient(main.app)
+
+    base_payload = InterpretRequest(
+        utterance="turn on the lamp",
+        catalog={
+            "areas": [],
+            "entities": [
+                {
+                    "entity_id": "light.lamp",
+                    "domain": "light",
+                    "friendly_name": "Lamp",
+                    "area_id": None,
+                    "device_id": None,
+                    "capabilities": {},
+                    "aliases": [],
+                }
+            ],
+            "scenes": [],
+            "plex_media": [],
+        },
+    )
+
+    first_response = _post_with_signature(
+        client, base_payload.model_dump(mode="json"), SHARED_SECRET
+    )
+
+    assert first_response.status_code == 200
+    assert len(build_calls) == 1
+
+    mutated_payload = base_payload.model_copy(deep=True)
+    mutated_payload.catalog.entities[0].friendly_name = "Desk Lamp"
+
+    second_response = _post_with_signature(
+        client, mutated_payload.model_dump(mode="json"), SHARED_SECRET
+    )
+
+    assert second_response.status_code == 200
+    assert len(build_calls) == 2
 
 def test_interpret_endpoint_rejects_invalid_signature():
     from adapter_service.main import app
