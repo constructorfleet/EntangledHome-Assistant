@@ -5,6 +5,7 @@ from typing import Iterable
 
 import pytest
 
+from custom_components.entangledhome import const as eh_const
 from custom_components.entangledhome.conversation import EntangledHomeConversationHandler
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
@@ -30,7 +31,14 @@ class DummyExecutor:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    async def __call__(self, hass, response: InterpretResponse, *, catalog: CatalogPayload) -> None:
+    async def __call__(
+        self,
+        hass,
+        response: InterpretResponse,
+        *,
+        catalog: CatalogPayload,
+        **kwargs: object,
+    ) -> None:
         self.calls.append((hass, response, catalog))
 
 
@@ -108,3 +116,51 @@ async def test_structured_logging_records_conversation(caplog: pytest.LogCapture
     assert payload["confidence"] == pytest.approx(0.93)
     assert payload["duration_ms"] == pytest.approx(200.0)
     assert payload["outcome"] == "executed"
+
+
+async def test_guardrail_logging_records_block(caplog: pytest.LogCaptureFixture) -> None:
+    """Guardrail decisions should emit structured log records when blocked."""
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front",  # noqa: F841 - extra context for assertions
+        targets=["lock.front"],
+        params={},
+        confidence=0.88,
+    )
+    adapter = DummyAdapter(response)
+    executor = DummyExecutor()
+    handler = EntangledHomeConversationHandler(
+        SimpleNamespace(),
+        SimpleNamespace(
+            options={
+                eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+                eh_const.OPT_CONFIDENCE_THRESHOLD: 0.4,
+                eh_const.OPT_NIGHT_MODE_ENABLED: False,
+                eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            }
+        ),
+        adapter_client=adapter,
+        catalog_provider=lambda: CatalogPayload(),
+        intent_executor=executor,
+        monotonic_source=MonotonicStub([1.0, 2.0]),
+        guardrail_config={
+            eh_const.OPT_DANGEROUS_INTENTS: ["unlock_door"],
+            eh_const.OPT_ALLOWED_HOURS: {"unlock_door": [9, 20]},
+        },
+        now_provider=lambda: datetime(2024, 1, 1, 8, 0, 0, tzinfo=timezone.utc),
+    )
+
+    with caplog.at_level(logging.INFO, logger="custom_components.entangledhome.conversation"):
+        result = await handler.async_handle("Unlock the front door")
+
+    assert result.success is False
+    guardrail_records = [
+        rec for rec in caplog.records if rec.message == "entangledhome.guardrail"
+    ]
+    assert len(guardrail_records) == 1
+    record = guardrail_records[0]
+    payload = record.entangled_guardrail
+    assert payload["outcome"] == "blocked"
+    assert payload["reason"] == "dangerous_intent_after_hours"
+    assert payload["intent"] == "unlock_door"

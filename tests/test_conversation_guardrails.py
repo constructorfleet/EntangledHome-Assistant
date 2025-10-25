@@ -30,15 +30,7 @@ except ModuleNotFoundError:  # pragma: no cover - executed in test environment
 
 import pytest
 
-from custom_components.entangledhome.const import (
-    OPT_CONFIDENCE_THRESHOLD,
-    OPT_DEDUPLICATION_WINDOW,
-    OPT_ENABLE_CONFIDENCE_GATE,
-    OPT_NIGHT_MODE_ENABLED,
-    OPT_NIGHT_MODE_END_HOUR,
-    OPT_NIGHT_MODE_START_HOUR,
-    OPT_ADAPTER_SHARED_SECRET,
-)
+from custom_components.entangledhome import const as eh_const
 from custom_components.entangledhome.conversation import (
     ConversationResult,
     EntangledHomeConversationHandler,
@@ -81,6 +73,7 @@ class DummyExecutor:
         response: InterpretResponse,
         *,
         catalog: CatalogPayload,
+        **kwargs: object,
     ) -> None:
         self.calls.append((hass, response, catalog))
 
@@ -98,6 +91,7 @@ class FailingExecutor:
         response: InterpretResponse,
         *,
         catalog: CatalogPayload,
+        **kwargs: object,
     ) -> None:
         self.calls.append((hass, response, catalog))
         raise self.error
@@ -131,6 +125,7 @@ def _handler(
     adapter: DummyAdapter,
     executor: DummyExecutor,
     options: dict[str, object],
+    guardrail_config: dict[str, object] | None = None,
     monotonic_values: Sequence[float] | None = None,
     now: datetime | None = None,
     telemetry: TelemetryStub | None = None,
@@ -140,6 +135,10 @@ def _handler(
     entry = SimpleNamespace(options=options)
     monotonic = MonotonicStub(monotonic_values or [0.0, 10.0, 20.0])
     now_provider = (lambda: now) if now is not None else (lambda: datetime(2024, 1, 1, 12, 0, 0))
+
+    handler_kwargs: dict[str, object] = {}
+    if guardrail_config is not None:
+        handler_kwargs["guardrail_config"] = guardrail_config
 
     return EntangledHomeConversationHandler(
         hass,
@@ -151,6 +150,7 @@ def _handler(
         now_provider=now_provider,
         secondary_signal_provider=secondary_signals,
         telemetry_recorder=telemetry,
+        **handler_kwargs,
     )
 
 
@@ -170,12 +170,12 @@ async def test_confidence_gate_blocks_low_confidence_intents() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: True,
-            OPT_CONFIDENCE_THRESHOLD: 0.8,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: True,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.8,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
     )
 
@@ -196,12 +196,12 @@ async def test_night_mode_suppresses_adapter_call() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: False,
-            OPT_CONFIDENCE_THRESHOLD: 0.5,
-            OPT_NIGHT_MODE_ENABLED: True,
-            OPT_NIGHT_MODE_START_HOUR: 22,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: True,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 22,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
         now=datetime(2024, 1, 1, 23, 45, 0),
     )
@@ -230,12 +230,12 @@ async def test_recent_duplicate_commands_are_suppressed() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: True,
-            OPT_CONFIDENCE_THRESHOLD: 0.6,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: True,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.6,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
         monotonic_values=[0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
     )
@@ -266,12 +266,12 @@ async def test_sensitive_intents_require_secondary_signals() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: True,
-            OPT_CONFIDENCE_THRESHOLD: 0.6,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: True,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.6,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
         secondary_signals=lambda: set(),
     )
@@ -300,12 +300,12 @@ async def test_sensitive_intents_execute_when_signals_present() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: True,
-            OPT_CONFIDENCE_THRESHOLD: 0.6,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: True,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.6,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
         secondary_signals=lambda: {"presence"},
     )
@@ -334,13 +334,13 @@ async def test_adapter_client_receives_shared_secret_from_options() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: False,
-            OPT_CONFIDENCE_THRESHOLD: 0.5,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
-            OPT_ADAPTER_SHARED_SECRET: shared_secret,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ADAPTER_SHARED_SECRET: shared_secret,
         },
     )
 
@@ -368,12 +368,12 @@ async def test_executor_errors_return_failure_and_record_telemetry() -> None:
         adapter=adapter,
         executor=executor,
         options={
-            OPT_ENABLE_CONFIDENCE_GATE: False,
-            OPT_CONFIDENCE_THRESHOLD: 0.5,
-            OPT_NIGHT_MODE_ENABLED: False,
-            OPT_NIGHT_MODE_START_HOUR: 23,
-            OPT_NIGHT_MODE_END_HOUR: 6,
-            OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
         },
         monotonic_values=[0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
         telemetry=telemetry,
@@ -391,3 +391,113 @@ async def test_executor_errors_return_failure_and_record_telemetry() -> None:
     assert len(adapter.calls) == 2
     assert len(telemetry.events) == 2
     assert all(event["outcome"] == "failed" for event in telemetry.events)
+
+
+async def test_guardrail_threshold_override_blocks_low_confidence() -> None:
+    """Per-intent threshold overrides should block low confidence responses."""
+
+    response = InterpretResponse(
+        intent="turn_on",
+        area="office",
+        targets=["light.office"],
+        params={},
+        confidence=0.72,
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: True,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+        },
+        guardrail_config={
+            eh_const.OPT_INTENT_THRESHOLDS: {"turn_on": 0.9},
+        },
+    )
+
+    result = await handler.async_handle("Turn on the office light")
+
+    assert result.success is False
+    assert "confidence" in result.response.lower()
+    assert executor.calls == []
+
+
+async def test_guardrail_dedupe_window_override_blocks_duplicates() -> None:
+    """Per-intent dedupe overrides should honor the configured window."""
+
+    response = InterpretResponse(
+        intent="turn_on",
+        area="kitchen",
+        targets=["light.kitchen"],
+        params={},
+        confidence=0.96,
+    )
+    adapter = DummyAdapter([response, response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 0.5,
+        },
+        guardrail_config={
+            eh_const.OPT_RECENT_COMMAND_WINDOW_OVERRIDES: {"turn_on": 3.0},
+        },
+        monotonic_values=[0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
+    )
+
+    first = await handler.async_handle("Activate kitchen lights")
+    second = await handler.async_handle("Activate kitchen lights")
+
+    assert first.success is True
+    assert second.success is False
+    assert "duplicate" in second.response.lower()
+    assert len(executor.calls) == 1
+
+
+async def test_guardrail_blocks_dangerous_intents_after_hours() -> None:
+    """Dangerous intents should be rejected outside their allowed hours."""
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front",
+        targets=["lock.front"],
+        params={},
+        confidence=0.94,
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+        },
+        guardrail_config={
+            eh_const.OPT_DANGEROUS_INTENTS: ["unlock_door"],
+            eh_const.OPT_ALLOWED_HOURS: {"unlock_door": [7, 21]},
+        },
+        now=datetime(2024, 1, 1, 22, 30, 0),
+    )
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is False
+    assert "hours" in result.response.lower()
+    assert executor.calls == []

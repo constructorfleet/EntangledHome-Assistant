@@ -33,6 +33,7 @@ async def async_execute_intent(
     response: InterpretResponse,
     *,
     catalog: CatalogPayload,
+    intent_config: Mapping[str, Any] | None = None,
 ) -> None:
     """Execute the interpreted intent via Home Assistant services."""
 
