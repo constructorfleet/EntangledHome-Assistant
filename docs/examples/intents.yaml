@@ -1,0 +1,39 @@
+# Sample intents configuration for EntangledHome.
+# Copy into configuration.yaml or reference via !include.
+
+entangledhome:
+  intents_config:
+    entangledhome.turn_on:
+      # Override how the adapter surfaces slot hints for this intent.
+      slot_hints:
+        color:
+          - warm
+          - cool white
+          - daylight
+      confidence_threshold: 0.72
+      recent_command_window: 1.5
+    entangledhome.set_light_color:
+      # Mark this as dangerous so the adapter requests verification tokens.
+      dangerous: true
+      required_secondary_signals:
+        - presence:person.alice
+        - voice:alice
+      allowed_hours:
+        start: 7
+        end: 22
+    entangledhome.open_garage:
+      dangerous: true
+      confidence_threshold: 0.85
+      allowed_hours:
+        start: 6
+        end: 21
+      required_secondary_signals:
+        - presence:person.bob
+    entangledhome.scene_activate:
+      # Provide adapter hints for synonyms and device targets.
+      slot_hints:
+        scene:
+          - movie time
+          - relax mode
+      targets:
+        domain: scene

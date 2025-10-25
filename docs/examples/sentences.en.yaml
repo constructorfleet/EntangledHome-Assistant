@@ -1,0 +1,18 @@
+language: en
+intents:
+  entangledhome.catch_all:
+    data:
+      - sentences:
+          - "{utterance}"  # Let the adapter handle raw phrasing
+  entangledhome.turn_on:
+    data:
+      - sentences:
+          - "light up the {area}"
+          - "bring the {area} lights to {brightness}%"
+    response: "Sending that to the adapter for confirmation."
+  entangledhome.open_garage:
+    data:
+      - sentences:
+          - "open the garage door for {person}"
+          - "let {person} pull in"
+    response: "I'll check verification before opening the garage."

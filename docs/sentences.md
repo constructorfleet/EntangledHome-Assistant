@@ -13,3 +13,6 @@ catch-all handler that forwards free-form requests to the adapter. The defaults 
 
 The catch-all behavior is always active so overrides can focus on refining the primary intent
 sentences without blocking natural-language fallthrough to the adapter.
+
+See [`docs/examples/sentences.en.yaml`](examples/sentences.en.yaml) for a starter template that
+demonstrates localized slot hints and intent-specific responses.
