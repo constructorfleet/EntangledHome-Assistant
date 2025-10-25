@@ -99,3 +99,4 @@ class InterpretResponse(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     sensitive: bool = False
     required_secondary_signals: list[str] = Field(default_factory=list)
+    qdrant_terms: list[str] = Field(default_factory=list)

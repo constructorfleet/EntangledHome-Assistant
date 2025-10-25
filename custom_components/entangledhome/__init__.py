@@ -7,8 +7,9 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DEFAULT_OPTION_VALUES, DOMAIN
+from .const import DATA_TELEMETRY, DEFAULT_OPTION_VALUES, DOMAIN
 from .coordinator import EntangledHomeCoordinator
+from .telemetry import TelemetryRecorder
 
 PLATFORMS: list[str] = []
 
@@ -18,8 +19,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = EntangledHomeCoordinator(hass, entry)
+    telemetry = TelemetryRecorder()
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
+        DATA_TELEMETRY: telemetry,
     }
 
     await coordinator.async_config_entry_first_refresh()

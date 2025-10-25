@@ -28,6 +28,7 @@ from .const import (
     OPT_NIGHT_MODE_START_HOUR,
 )
 from .models import CatalogPayload, InterpretResponse
+from .telemetry import TelemetryRecorder
 
 
 CatalogProvider = Callable[[], CatalogPayload | Awaitable[CatalogPayload]]
@@ -55,6 +56,7 @@ class EntangledHomeConversationHandler:
         monotonic_source: Callable[[], float] | None = None,
         now_provider: Callable[[], datetime] | None = None,
         secondary_signal_provider: Callable[[], Iterable[str]] | None = None,
+        telemetry_recorder: TelemetryRecorder | None = None,
     ) -> None:
         self._hass = hass
         self._entry = entry
@@ -66,11 +68,13 @@ class EntangledHomeConversationHandler:
         self._dedupe: dict[str, float] = {}
         self._secondary_signal_provider = secondary_signal_provider or (lambda: ())
         self._last_shared_secret: str | None = None
+        self._telemetry = telemetry_recorder
 
     async def async_handle(self, utterance: str) -> ConversationResult:
         """Interpret and execute ``utterance`` applying configured guardrails."""
 
         options: Mapping[str, Any] = getattr(self._entry, "options", {})
+        start_time = self._monotonic()
 
         self._apply_adapter_shared_secret(options)
 
@@ -103,6 +107,16 @@ class EntangledHomeConversationHandler:
 
         if dedupe_window > 0:
             self._dedupe[token] = now_value
+
+        end_time = self._monotonic()
+        duration_ms = max(0.0, (end_time - start_time) * 1000.0)
+
+        self._record_telemetry(
+            utterance=utterance,
+            response=response,
+            duration_ms=duration_ms,
+            outcome="executed",
+        )
 
         return ConversationResult(True, "Intent executed successfully.")
 
@@ -184,3 +198,26 @@ class EntangledHomeConversationHandler:
         elif hasattr(self._adapter, "_shared_secret"):
             setattr(self._adapter, "_shared_secret", secret)
         self._last_shared_secret = secret
+
+    def _record_telemetry(
+        self,
+        *,
+        utterance: str,
+        response: InterpretResponse,
+        duration_ms: float,
+        outcome: str,
+    ) -> None:
+        recorder = self._telemetry
+        if recorder is None:
+            return
+
+        try:
+            recorder.record_event(
+                utterance=utterance,
+                qdrant_terms=list(getattr(response, "qdrant_terms", [])),
+                response=response,
+                duration_ms=duration_ms,
+                outcome=outcome,
+            )
+        except Exception:  # pragma: no cover - telemetry should not disrupt handling
+            pass

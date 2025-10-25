@@ -180,7 +180,7 @@ async def test_recent_duplicate_commands_are_suppressed() -> None:
             OPT_NIGHT_MODE_END_HOUR: 6,
             OPT_DEDUPLICATION_WINDOW: 2.0,
         },
-        monotonic_values=[0.0, 1.0],
+        monotonic_values=[0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
     )
 
     first = await handler.async_handle("lights off")
