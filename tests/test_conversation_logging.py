@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime, timezone, timedelta
-from types import SimpleNamespace
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -9,6 +8,8 @@ from custom_components.entangledhome import const as eh_const
 from custom_components.entangledhome.conversation import EntangledHomeConversationHandler
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,11 +38,11 @@ class DummyExecutor:
     """Executor stub capturing invocations."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple] = []
+        self.calls: list[tuple[HomeAssistant, InterpretResponse, CatalogPayload]] = []
 
     async def __call__(
         self,
-        hass,
+        hass: HomeAssistant,
         response: InterpretResponse,
         *,
         catalog: CatalogPayload,
@@ -91,8 +92,8 @@ async def test_structured_logging_records_conversation(caplog: pytest.LogCapture
         clock=ClockStub(datetime(2024, 1, 1, tzinfo=timezone.utc), timedelta(milliseconds=5)),
     )
     handler = EntangledHomeConversationHandler(
-        SimpleNamespace(),
-        SimpleNamespace(options={}),
+        HomeAssistant(),
+        ConfigEntry(entry_id="log-entry", options={}),
         adapter_client=adapter,
         catalog_provider=lambda: CatalogPayload(),
         intent_executor=executor,
@@ -139,14 +140,15 @@ async def test_guardrail_logging_records_block(caplog: pytest.LogCaptureFixture)
     adapter = DummyAdapter(response)
     executor = DummyExecutor()
     handler = EntangledHomeConversationHandler(
-        SimpleNamespace(),
-        SimpleNamespace(
+        HomeAssistant(),
+        ConfigEntry(
+            entry_id="guardrail-entry",
             options={
                 eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
                 eh_const.OPT_CONFIDENCE_THRESHOLD: 0.4,
                 eh_const.OPT_NIGHT_MODE_ENABLED: False,
                 eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
-            }
+            },
         ),
         adapter_client=adapter,
         catalog_provider=lambda: CatalogPayload(),

@@ -4,10 +4,13 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import Any
+
 import sys
-from tests.stubs.homeassistant.config_entries import ConfigEntry
-from tests.stubs.homeassistant.core import HomeAssistant
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -136,10 +139,12 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
         async def aclose(self) -> None:
             self._closed = True
 
-    sys.modules.setdefault(
-        "httpx",
-        SimpleNamespace(AsyncClient=_HttpxAsyncClient, Timeout=object, HTTPError=Exception),
-    )
+    if "httpx" not in sys.modules:
+        httpx_stub = ModuleType("httpx")
+        httpx_stub.AsyncClient = _HttpxAsyncClient
+        httpx_stub.Timeout = object
+        httpx_stub.HTTPError = Exception
+        sys.modules["httpx"] = httpx_stub
 
     import custom_components.entangledhome as integration
 
@@ -147,11 +152,15 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     hass.config = SimpleNamespace(
         path=lambda *parts: str(tmp_path.joinpath(*parts))
     )
-    hass.config_entries = SimpleNamespace(
-        async_update_entry=lambda entry, options: entry.__setattr__("options", options)
-    )
 
-    entry = ConfigEntry(entry_id="doc-guard", data={}, options={})
+    def _update_entry(entry: ConfigEntry, *, options: dict[str, Any] | None = None) -> None:
+        if options is not None:
+            entry.options = dict(options)
+
+    hass.config_entries.async_update_entry = _update_entry  # type: ignore[method-assign]
+
+    entry = ConfigEntry(entry_id="doc-guard", options={})
+    entry.data = {}  # type: ignore[attr-defined]
 
     async def _run() -> None:
         await integration.async_setup_entry(hass, entry)

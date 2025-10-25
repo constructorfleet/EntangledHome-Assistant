@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
@@ -7,6 +6,8 @@ from custom_components.entangledhome.const import DATA_TELEMETRY, DOMAIN
 from custom_components.entangledhome.diagnostics import async_get_config_entry_diagnostics
 from custom_components.entangledhome.models import InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 pytestmark = pytest.mark.asyncio
 
@@ -47,8 +48,9 @@ async def test_diagnostics_returns_recent_commands() -> None:
         outcome="executed",
     )
 
-    hass = SimpleNamespace(data={DOMAIN: {"entry-1": {DATA_TELEMETRY: recorder}}})
-    entry = SimpleNamespace(entry_id="entry-1")
+    hass = HomeAssistant()
+    hass.data = {DOMAIN: {"entry-1": {DATA_TELEMETRY: recorder}}}
+    entry = ConfigEntry(entry_id="entry-1", options={})
 
     result = await async_get_config_entry_diagnostics(hass, entry)
 
@@ -67,8 +69,9 @@ async def test_diagnostics_returns_recent_commands() -> None:
 async def test_diagnostics_returns_empty_when_missing_recorder() -> None:
     """Diagnostics should fallback to empty results when recorder is absent."""
 
-    hass = SimpleNamespace(data={DOMAIN: {"entry-2": {}}})
-    entry = SimpleNamespace(entry_id="entry-2")
+    hass = HomeAssistant()
+    hass.data = {DOMAIN: {"entry-2": {}}}
+    entry = ConfigEntry(entry_id="entry-2", options={})
 
     result = await async_get_config_entry_diagnostics(hass, entry)
 

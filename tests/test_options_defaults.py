@@ -2,7 +2,25 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+from typing import Any, Callable
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+
+def _override_update_entry(
+    hass: HomeAssistant,
+    handler: Callable[[ConfigEntry, dict[str, Any]], None],
+) -> None:
+    original = hass.config_entries.async_update_entry
+
+    def _wrapper(entry: ConfigEntry, *, options: dict[str, Any] | None = None) -> None:
+        if options is not None:
+            handler(entry, options)
+        else:
+            original(entry, options=options)
+
+    hass.config_entries.async_update_entry = _wrapper  # type: ignore[method-assign]
 
 
 def test_ensure_default_options_populates_guardrail_defaults() -> None:
@@ -23,16 +41,14 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
         OPT_NIGHT_MODE_START_HOUR,
     )
 
-    hass = SimpleNamespace()
+    hass = HomeAssistant()
 
-    class FakeConfigEntries:
-        def async_update_entry(self, entry, *, options=None, data=None):
-            if options is not None:
-                entry.options = options
+    def _store_options(entry: ConfigEntry, options: dict[str, Any]) -> None:
+        entry.options = dict(options)
 
-    hass.config_entries = FakeConfigEntries()
+    _override_update_entry(hass, _store_options)
 
-    entry = SimpleNamespace(entry_id="guardrail-entry", options={})
+    entry = ConfigEntry(entry_id="guardrail-entry", options={})
 
     _ensure_default_options(hass, entry)
 
@@ -59,18 +75,16 @@ def test_ensure_default_options_populates_refresh_and_plex_defaults() -> None:
         OPT_REFRESH_INTERVAL_MINUTES,
     )
 
-    hass = SimpleNamespace()
+    hass = HomeAssistant()
     updated_options: dict[str, object] = {}
 
-    class FakeConfigEntries:
-        def async_update_entry(self, entry, *, options=None, data=None):
-            if options is not None:
-                entry.options = options
-                updated_options.update(options)
+    def _capture_options(entry: ConfigEntry, options: dict[str, Any]) -> None:
+        entry.options = dict(options)
+        updated_options.update(options)
 
-    hass.config_entries = FakeConfigEntries()
+    _override_update_entry(hass, _capture_options)
 
-    entry = SimpleNamespace(entry_id="test-entry", options={})
+    entry = ConfigEntry(entry_id="test-entry", options={})
 
     _ensure_default_options(hass, entry)
 
@@ -105,15 +119,14 @@ def test_ensure_default_options_preserves_existing_values() -> None:
         DEFAULT_INTENTS_CONFIG,
     )
 
-    hass = SimpleNamespace()
+    hass = HomeAssistant()
 
-    class FakeConfigEntries:
-        def async_update_entry(self, entry, *, options=None, data=None):
-            raise AssertionError("Should not update options when all defaults present")
+    def _fail_update(entry: ConfigEntry, options: dict[str, Any]) -> None:
+        raise AssertionError("Should not update options when all defaults present")
 
-    hass.config_entries = FakeConfigEntries()
+    _override_update_entry(hass, _fail_update)
 
-    entry = SimpleNamespace(
+    entry = ConfigEntry(
         entry_id="test-entry",
         options={
             OPT_ENABLE_CATALOG_SYNC: True,

@@ -21,6 +21,7 @@ from custom_components.entangledhome.models import (
     CatalogScene,
     InterpretResponse,
 )
+from homeassistant.core import HomeAssistant
 
 
 pytestmark = pytest.mark.asyncio
@@ -40,12 +41,12 @@ class FakeStates:
 
 
 @pytest.fixture
-def fake_hass() -> SimpleNamespace:
+def fake_hass() -> HomeAssistant:
     """Return a stub Home Assistant core object."""
 
-    hass = SimpleNamespace()
-    hass.services = SimpleNamespace(async_call=AsyncMock())
-    hass.states = FakeStates()
+    hass = HomeAssistant()
+    hass.services = SimpleNamespace(async_call=AsyncMock())  # type: ignore[attr-defined]
+    hass.states = FakeStates()  # type: ignore[attr-defined]
     return hass
 
 
@@ -85,7 +86,7 @@ def _catalog_with_entities_and_scenes(
     )
 
 
-async def test_report_sensor_summarizes_by_area(fake_hass: SimpleNamespace) -> None:
+async def test_report_sensor_summarizes_by_area(fake_hass: HomeAssistant) -> None:
     """`report_sensor` should produce grouped spoken summaries and call conversation service."""
 
     catalog = _catalog_with_entities_and_scenes()
@@ -115,7 +116,7 @@ async def test_report_sensor_summarizes_by_area(fake_hass: SimpleNamespace) -> N
     )
 
 
-async def test_media_play_routes_to_media_player(fake_hass: SimpleNamespace) -> None:
+async def test_media_play_routes_to_media_player(fake_hass: HomeAssistant) -> None:
     """`media_play` should call the media_player domain with the interpreted target."""
 
     catalog = _catalog_with_entities_and_scenes()
@@ -143,7 +144,7 @@ async def test_media_play_routes_to_media_player(fake_hass: SimpleNamespace) -> 
     )
 
 
-async def test_media_pause_routes_to_media_player(fake_hass: SimpleNamespace) -> None:
+async def test_media_pause_routes_to_media_player(fake_hass: HomeAssistant) -> None:
     """`media_pause` should call the media_player domain with the interpreted target."""
 
     catalog = _catalog_with_entities_and_scenes()
@@ -171,7 +172,7 @@ async def test_media_pause_routes_to_media_player(fake_hass: SimpleNamespace) ->
     )
 
 
-async def test_play_title_invokes_media_player_with_plex_metadata(fake_hass: SimpleNamespace) -> None:
+async def test_play_title_invokes_media_player_with_plex_metadata(fake_hass: HomeAssistant) -> None:
     """`play_title` should call play_media with Plex metadata preserved."""
 
     catalog = _catalog_with_entities_and_scenes()
@@ -214,7 +215,7 @@ async def test_play_title_invokes_media_player_with_plex_metadata(fake_hass: Sim
     )
 
 
-async def test_scene_activate_uses_fuzzy_resolution(fake_hass: SimpleNamespace) -> None:
+async def test_scene_activate_uses_fuzzy_resolution(fake_hass: HomeAssistant) -> None:
     """Scene activation should resolve human friendly names via fuzzy matching."""
 
     catalog = _catalog_with_entities_and_scenes(
@@ -290,7 +291,7 @@ def test_executor_registry_lists_supported_intents() -> None:
 
 
 async def test_async_execute_intent_errors_for_unknown_intent(
-    fake_hass: SimpleNamespace,
+    fake_hass: HomeAssistant,
 ) -> None:
     """Unknown intents should raise a descriptive error."""
 
@@ -312,7 +313,7 @@ async def test_async_execute_intent_errors_for_unknown_intent(
 
 
 async def test_async_execute_intent_errors_when_intent_disabled(
-    fake_hass: SimpleNamespace,
+    fake_hass: HomeAssistant,
 ) -> None:
     """Passing a disabled flag in intent metadata should abort execution."""
 
