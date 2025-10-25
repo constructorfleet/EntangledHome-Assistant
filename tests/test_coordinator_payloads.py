@@ -167,3 +167,83 @@ def test_coordinator_does_not_reexport_catalog_helpers() -> None:
 
     assert not hasattr(module, "build_catalog_payload")
     assert not hasattr(module, "serialize_catalog_for_qdrant")
+
+
+def test_coordinator_embed_texts_uses_entry_provider() -> None:
+    """Embed texts should delegate to the entry-specific provider when present."""
+
+    from types import SimpleNamespace
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from custom_components.entangledhome.const import DOMAIN
+
+    hass = HomeAssistant()
+    entry = SimpleNamespace(options={}, entry_id="entry-1")
+    result_holder: list[list[float]] = [[1.0, 2.0]]
+
+    def embedder(texts: list[str]) -> list[list[float]]:
+        assert texts == ["hello"]
+        return result_holder
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"embed_texts": embedder}
+
+    coordinator = EntangledHomeCoordinator(hass, entry)
+
+    result = asyncio.run(coordinator._embed_texts(["hello"]))
+
+    assert result is result_holder
+
+
+def test_coordinator_upsert_points_uses_entry_provider() -> None:
+    """Upsert should call the entry-specific Qdrant function when available."""
+
+    from types import SimpleNamespace
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from custom_components.entangledhome.const import DOMAIN
+
+    hass = HomeAssistant()
+    entry = SimpleNamespace(options={}, entry_id="entry-2")
+    calls: list[tuple[str, list[dict[str, object]]]] = []
+
+    async def upsert(collection: str, points: list[dict[str, object]]) -> None:
+        calls.append((collection, points))
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"qdrant_upsert": upsert}
+
+    coordinator = EntangledHomeCoordinator(hass, entry)
+    points_payload = [{"id": 1}]
+
+    asyncio.run(coordinator._upsert_points("entities", points_payload))
+
+    assert calls == [("entities", points_payload)]
+
+
+def test_coordinator_collect_plex_media_uses_entry_client() -> None:
+    """Plex catalog should be obtained from the entry-specific client when provided."""
+
+    from types import SimpleNamespace
+
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from custom_components.entangledhome.const import DOMAIN
+
+    hass = HomeAssistant()
+    entry = SimpleNamespace(options={}, entry_id="entry-3")
+
+    class PlexClient:
+        async def async_get_catalog(self):
+            return [{"title": "Example"}]
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"plex_client": PlexClient()}
+
+    coordinator = EntangledHomeCoordinator(hass, entry)
+
+    media = asyncio.run(coordinator._collect_plex_media())
+
+    assert media == [{"title": "Example"}]

@@ -71,16 +71,20 @@ class EntangledHomeCoordinator(DataUpdateCoordinator[None]):
         )
 
     async def _embed_texts(self, texts: list[str]) -> list[list[float]]:
-        provider = self._domain_data().get("embed_texts")
+        entry_data = self._domain_data()
+        provider = entry_data.get("embed_texts")
         if provider is None:
             return [[0.0] * 1 for _ in texts]
         result = provider(texts)
         if asyncio.iscoroutine(result):
-            return await result
+            result = await result
+        if isinstance(result, list):
+            return result
         return list(result)
 
     async def _upsert_points(self, collection: str, points: list[dict[str, Any]]) -> None:
-        client = self._domain_data().get("qdrant_upsert")
+        entry_data = self._domain_data()
+        client = entry_data.get("qdrant_upsert")
         if client is None:
             return
         result = client(collection, points)
@@ -153,7 +157,8 @@ class EntangledHomeCoordinator(DataUpdateCoordinator[None]):
         return scenes
 
     async def _collect_plex_media(self) -> Sequence[Mapping[str, Any]]:
-        client = self._domain_data().get("plex_client")
+        entry_data = self._domain_data()
+        client = entry_data.get("plex_client")
         if client is None:
             return []
 
@@ -170,4 +175,10 @@ class EntangledHomeCoordinator(DataUpdateCoordinator[None]):
 
     def _domain_data(self) -> dict[str, Any]:
         stored = self.hass.data.get(DOMAIN)
-        return stored if isinstance(stored, dict) else {}
+        if not isinstance(stored, dict):
+            return {}
+        entry_id = getattr(self.config_entry, "entry_id", None)
+        if entry_id is None:
+            return {}
+        entry_data = stored.get(entry_id)
+        return entry_data if isinstance(entry_data, dict) else {}
