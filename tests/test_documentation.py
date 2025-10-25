@@ -83,6 +83,45 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
     )
 
 
+def test_readme_documents_configurable_intents_and_guardrails() -> None:
+    readme = _read_text(REPO_ROOT / "README.md")
+    _assert_contains(
+        readme,
+        [
+            "## Configurable intents",
+            "### YAML configuration example",
+            "### UI configuration walkthrough",
+            "## Sentence customization",
+            "## Guardrail thresholds and dangerous intents",
+            "## Qdrant ingestion scripts",
+            "## Adapter deployment",
+            "## Migration notes",
+            "## Troubleshooting",
+        ],
+    )
+
+    examples_dir = REPO_ROOT / "docs" / "examples"
+    for example_path in (examples_dir / "intents.yaml", examples_dir / "sentences.en.yaml"):
+        assert example_path.exists()
+
+    doc_checks = {
+        REPO_ROOT / "docs" / "migration.md": [
+            "# Migration notes",
+            "Deprecated",
+            "Breaking changes",
+        ],
+        REPO_ROOT / "docs" / "troubleshooting.md": [
+            "# Troubleshooting",
+            "Common issues",
+            "Adapter connectivity",
+            "Qdrant ingestion",
+        ],
+    }
+
+    for path, markers in doc_checks.items():
+        _assert_contains(_read_text(path), markers)
+
+
 def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     """Custom sentence templates should override packaged defaults after reload."""
 
