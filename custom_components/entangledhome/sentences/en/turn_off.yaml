@@ -1,0 +1,11 @@
+language: en
+intents:
+  entangledhome.turn_off:
+    data:
+      - sentences:
+          - turn off {targets}
+          - turn off {targets} in {area}
+      - sentences:
+          - switch off the lights in {area}
+        slots:
+          targets: lights

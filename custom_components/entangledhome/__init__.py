@@ -7,6 +7,8 @@ import hashlib
 import json
 import logging
 import os
+from importlib import resources
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Mapping, Sequence
 
 import httpx
@@ -63,6 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_entry["secondary_signal_provider"] = build_secondary_signal_provider(hass, entry)
     domain_entry["guardrail_config"] = _parse_guardrail_options(entry.options)
     domain_entry["intents_config"] = _parse_intents_config(entry.options)
+    domain_entry["sentence_templates"] = _load_sentence_templates(hass)
 
     hass.data[DOMAIN][entry.entry_id] = domain_entry
 
@@ -124,6 +127,47 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str) -> EntangledHomeCoordin
     if not stored:
         return None
     return stored.get("coordinator")
+
+
+def _load_sentence_templates(
+    hass: HomeAssistant,
+    *,
+    language: str = "en",
+) -> dict[str, str]:
+    """Load packaged sentence templates with config overrides if present."""
+
+    templates: dict[str, str] = {}
+
+    try:
+        package_root = resources.files(__package__).joinpath("sentences", language)
+    except (FileNotFoundError, ModuleNotFoundError):
+        package_root = None
+
+    if package_root is not None and package_root.is_dir():
+        for resource in package_root.iterdir():
+            if not resource.is_file() or not resource.name.endswith(".yaml"):
+                continue
+            stem = Path(resource.name).stem
+            try:
+                templates[stem] = resource.read_text(encoding="utf-8")
+            except OSError:
+                _LOGGER.debug("Failed to read packaged sentence template %s", resource, exc_info=True)
+
+    config = getattr(hass, "config", None)
+    if config and hasattr(config, "path"):
+        override_root = Path(
+            config.path("custom_components", "entangledhome", "sentences", language)
+        )
+        if override_root.is_dir():
+            for override in sorted(override_root.glob("*.yaml")):
+                try:
+                    templates[override.stem] = override.read_text(encoding="utf-8")
+                except OSError:
+                    _LOGGER.debug(
+                        "Failed to read sentence override %s", override, exc_info=True
+                    )
+
+    return templates
 
 
 def _build_adapter_client(entry: ConfigEntry) -> AdapterClient:

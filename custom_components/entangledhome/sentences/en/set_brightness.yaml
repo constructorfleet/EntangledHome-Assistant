@@ -1,0 +1,9 @@
+language: en
+intents:
+  entangledhome.set_brightness:
+    data:
+      - sentences:
+          - set {targets} to {brightness}
+          - set {targets} in {area} to {brightness}
+      - sentences:
+          - dim {targets} in {area} to {brightness}

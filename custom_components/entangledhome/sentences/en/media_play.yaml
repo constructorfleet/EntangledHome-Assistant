@@ -1,0 +1,9 @@
+language: en
+intents:
+  entangledhome.media_play:
+    data:
+      - sentences:
+          - play {media}
+          - play {media} on {targets}
+      - sentences:
+          - start playing {media} on {targets}

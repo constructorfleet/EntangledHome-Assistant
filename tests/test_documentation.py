@@ -1,8 +1,13 @@
 """Documentation guardrail tests."""
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
+import sys
+from tests.stubs.homeassistant.config_entries import ConfigEntry
+from tests.stubs.homeassistant.core import HomeAssistant
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +34,9 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
             "### Qdrant Requirements",
             "## Guardrails and Security",
             "## Testing",
+            "## Conversation Sentences",
+            "catch-all intent",
+            "sentence overrides",
         ],
     )
 
@@ -61,3 +69,84 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
     example_config = REPO_ROOT / "docs" / "examples" / "homeassistant_configuration.yaml"
     assert example_config.exists()
     assert "entangledhome:" in _read_text(example_config)
+
+    sentences_doc = REPO_ROOT / "docs" / "sentences.md"
+    assert sentences_doc.exists()
+    sentences_copy = _read_text(sentences_doc)
+    _assert_contains(
+        sentences_copy,
+        [
+            "override templates",
+            "catch-all",
+            "custom_components/entangledhome/sentences/en",
+        ],
+    )
+
+
+def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
+    """Custom sentence templates should override packaged defaults after reload."""
+
+    DOMAIN = "entangledhome"
+    class _HttpxAsyncClient:  # pragma: no cover - stub methods unused in test
+        def __init__(self, *args, **kwargs) -> None:
+            self._closed = False
+
+        async def post(self, *args, **kwargs):  # pragma: no cover - defensive stub
+            raise RuntimeError("httpx.AsyncClient.post should not be called in this test")
+
+        async def aclose(self) -> None:
+            self._closed = True
+
+    sys.modules.setdefault(
+        "httpx",
+        SimpleNamespace(AsyncClient=_HttpxAsyncClient, Timeout=object, HTTPError=Exception),
+    )
+
+    import custom_components.entangledhome as integration
+
+    hass = HomeAssistant()
+    hass.config = SimpleNamespace(
+        path=lambda *parts: str(tmp_path.joinpath(*parts))
+    )
+    hass.config_entries = SimpleNamespace(
+        async_update_entry=lambda entry, options: entry.__setattr__("options", options)
+    )
+
+    entry = ConfigEntry(entry_id="doc-guard", data={}, options={})
+
+    async def _run() -> None:
+        await integration.async_setup_entry(hass, entry)
+
+        domain_entry = hass.data[DOMAIN][entry.entry_id]
+        templates = domain_entry.get("sentence_templates")
+        assert templates is not None
+        default_turn_on = templates.get("turn_on", "")
+        assert "turn on" in default_turn_on.lower()
+
+        override_dir = (
+            tmp_path
+            / "custom_components"
+            / "entangledhome"
+            / "sentences"
+            / "en"
+        )
+        override_dir.mkdir(parents=True, exist_ok=True)
+        override_turn_on = override_dir / "turn_on.yaml"
+        override_turn_on.write_text(
+            """language: en
+intents:
+  entangledhome.turn_on:
+    data:
+      - sentences:
+          - override the lights in {area}
+""",
+            encoding="utf-8",
+        )
+
+        await integration.async_unload_entry(hass, entry)
+        await integration.async_setup_entry(hass, entry)
+
+        reloaded = hass.data[DOMAIN][entry.entry_id]["sentence_templates"]
+        assert "override the lights" in reloaded["turn_on"]
+
+    asyncio.run(_run())
