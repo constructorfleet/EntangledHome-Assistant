@@ -1,0 +1,11 @@
+language: en
+intents:
+  entangledhome.turn_on:
+    data:
+      - sentences:
+          - turn on {targets}
+          - turn on {targets} in {area}
+      - sentences:
+          - turn on the lights in {area}
+        slots:
+          targets: lights

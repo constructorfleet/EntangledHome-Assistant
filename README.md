@@ -115,6 +115,17 @@ Additional safeguards:
 Continuous integration fails when documentation sections or example assets drift from the
 requirements enforced in `tests/test_documentation.py`, ensuring README guidance stays accurate.
 
+## Conversation Sentences
+
+The integration ships conversation sentence templates for each supported intent and a fallback
+catch-all intent. Home Assistant loads the packaged defaults from
+`custom_components/entangledhome/sentences/en/`. To provide sentence overrides, drop a file with the
+same intent name under your Home Assistant configuration at
+`config/custom_components/entangledhome/sentences/en/<intent>.yaml`. On setup the integration
+prefers these sentence overrides while continuing to expose the packaged defaults for intents that
+do not have a local template. The catch-all intent remains active regardless of overrides so free
+form commands continue to flow to the adapter service.
+
 ## Secondary Signals Reference
 
 Secondary signals are controlled via config entry options (UI or YAML overrides):

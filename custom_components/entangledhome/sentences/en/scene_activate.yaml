@@ -1,0 +1,9 @@
+language: en
+intents:
+  entangledhome.scene_activate:
+    data:
+      - sentences:
+          - activate the {scene} scene
+          - activate {scene} in {area}
+      - sentences:
+          - start {scene} mode in {area}
