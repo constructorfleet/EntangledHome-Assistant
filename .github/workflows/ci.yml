@@ -61,11 +61,7 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           PYTEST_ADDOPTS: "--assert=plain"
         run: |
-          uv run python -m pytest tests \
-            --cov=custom_components.entangledhome \
-            --cov=adapter_service \
-            --cov-report=xml:coverage-home-assistant.xml \
-            --cov-report=term
+          uv run python -m pytest tests
 
       - name: Upload coverage
         if: always()
@@ -101,11 +97,7 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           PYTEST_ADDOPTS: "--assert=plain"
         run: |
-          uv run python -m pytest adapter_service/tests \
-            --cov=custom_components.entangledhome \
-            --cov=adapter_service \
-            --cov-report=xml:coverage-adapter-service.xml \
-            --cov-report=term
+          uv run python -m pytest adapter_service/tests 
 
       - name: Upload coverage
         if: always()
