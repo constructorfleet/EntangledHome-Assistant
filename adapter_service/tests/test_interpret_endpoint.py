@@ -1,12 +1,58 @@
 import hashlib
 import hmac
 import json
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+from adapter_service.schema import InterpretResponse
+
 
 SHARED_SECRET = "test-shared-secret"
+
+
+class FakeEmbeddingService:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        return [[0.25 for _ in range(3)]]
+
+
+class FakeQdrantClient:
+    def __init__(self, results: dict[str, list[dict[str, Any]]]) -> None:
+        self._results = results
+        self.search_calls: list[tuple[str, list[float], int, float]] = []
+
+    async def search(
+        self,
+        collection: str,
+        vector: list[float],
+        *,
+        limit: int,
+        timeout: float,
+    ) -> list[dict[str, Any]]:
+        self.search_calls.append((collection, list(vector), limit, timeout))
+        return list(self._results.get(collection, []))
+
+
+class FakeModelClient:
+    def __init__(self, responses: list[InterpretResponse]) -> None:
+        self._responses = responses
+        self.calls: list[tuple[str, dict[str, Any], float]] = []
+
+    async def stream(
+        self,
+        *,
+        utterance: str,
+        prompt: dict[str, Any],
+        threshold: float,
+    ):
+        self.calls.append((utterance, prompt, threshold))
+        for response in self._responses:
+            yield response
 
 
 @pytest.fixture(autouse=True)
@@ -27,11 +73,38 @@ def _post_with_signature(client: TestClient, payload: dict, secret: str):
     return client.post("/interpret", data=body, headers=headers)
 
 
-def test_interpret_endpoint_returns_valid_response():
-    from adapter_service.main import app
-    from adapter_service.schema import InterpretRequest, InterpretResponse
+def test_interpret_endpoint_returns_valid_response(monkeypatch):
+    import importlib
 
-    client = TestClient(app)
+    from adapter_service.schema import InterpretRequest
+
+    import adapter_service.main as main
+
+    importlib.reload(main)
+
+    fake_embeddings = FakeEmbeddingService()
+    fake_qdrant = FakeQdrantClient({"ha_entities": [], "plex_media": []})
+    fallback = InterpretResponse(
+        intent="noop",
+        params={"reason": "adapter unavailable"},
+        confidence=0.12,
+    )
+    fake_model = FakeModelClient([fallback])
+
+    monkeypatch.setattr(
+        main,
+        "_MODEL_STREAMER",
+        main.StreamingModel(
+            settings=main.SETTINGS,
+            embedding_service=fake_embeddings,
+            qdrant_client=fake_qdrant,
+            model_client=fake_model,
+            top_k=4,
+        ),
+        raising=False,
+    )
+
+    client = TestClient(main.app)
 
     request_payload = InterpretRequest(
         utterance="turn on the living room lights",
@@ -57,18 +130,15 @@ def test_interpret_endpoint_returns_valid_response():
 
     body = InterpretResponse.model_validate(response.json())
     assert body.intent == "noop"
-    assert body.params
-
-
-async def _yield_chunks(responses):
-    for response in responses:
-        yield response
+    assert body.params["reason"] == "adapter unavailable"
+    assert fake_embeddings.calls == [["turn on the living room lights"]]
+    assert [call[0] for call in fake_qdrant.search_calls] == ["ha_entities", "plex_media"]
 
 
 def test_interpret_streaming_cache_and_metrics(monkeypatch):
     import importlib
 
-    from adapter_service.schema import InterpretRequest, InterpretResponse
+    from adapter_service.schema import InterpretRequest
 
     monkeypatch.setenv("CONFIDENCE_THRESHOLD", "0.8")
     monkeypatch.setenv("MODEL_TIMEOUT_S", "3.5")
@@ -91,37 +161,57 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
         raising=False,
     )
 
-    class FakeStreamer:
-        def __init__(self):
-            self.calls = []
+    fake_embeddings = FakeEmbeddingService()
+    fake_qdrant = FakeQdrantClient(
+        {
+            "ha_entities": [
+                {
+                    "payload": {
+                        "entity_id": "light.living_room_lamp",
+                        "friendly_name": "Living Room Lamp",
+                        "area_id": "living_room",
+                    }
+                }
+            ],
+            "plex_media": [
+                {
+                    "payload": {
+                        "rating_key": "movie-night",
+                        "title": "Movie Night",
+                        "type": "movie",
+                    }
+                }
+            ],
+        }
+    )
+    fake_model = FakeModelClient(
+        [
+            InterpretResponse(
+                intent="noop",
+                params={"stage": 1},
+                confidence=0.5,
+            ),
+            InterpretResponse(
+                intent="lights_on",
+                area="living_room",
+                params={"stage": 2},
+                confidence=0.86,
+            ),
+        ]
+    )
 
-        async def stream(self, utterance, catalog_slice, settings):
-            self.calls.append((utterance, catalog_slice, settings))
-            async for chunk in _yield_chunks(
-                [
-                    InterpretResponse(
-                        intent="noop",
-                        params={"stage": 1},
-                        confidence=0.5,
-                    ),
-                    InterpretResponse(
-                        intent="lights_on",
-                        area="living_room",
-                        params={"stage": 2},
-                        confidence=0.86,
-                    ),
-                    InterpretResponse(
-                        intent="should_not_emit",
-                        params={"stage": 3},
-                        confidence=0.9,
-                    ),
-                ]
-            ):
-                yield chunk
-            pytest.fail("stream consumed beyond confidence threshold")
-
-    fake_streamer = FakeStreamer()
-    monkeypatch.setattr(main, "_MODEL_STREAMER", fake_streamer, raising=False)
+    monkeypatch.setattr(
+        main,
+        "_MODEL_STREAMER",
+        main.StreamingModel(
+            settings=main.SETTINGS,
+            embedding_service=fake_embeddings,
+            qdrant_client=fake_qdrant,
+            model_client=fake_model,
+            top_k=4,
+        ),
+        raising=False,
+    )
 
     durations = [10.0, 10.002, 10.005]
 
@@ -159,7 +249,18 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     assert body.intent == "lights_on"
     assert body.area == "living_room"
     assert body.params == {"stage": 2}
-    assert len(fake_streamer.calls) == 1
+
+    assert len(fake_embeddings.calls) == 1
+    assert [call[0] for call in fake_qdrant.search_calls] == [
+        "ha_entities",
+        "plex_media",
+    ]
+    assert fake_model.calls[0][0] == "  Turn ON   the Living Room Lights  "
+    prompt = fake_model.calls[0][1]
+    assert prompt["catalog"] == {"areas": ["Living Room"]}
+    assert prompt["retrieved"]["ha_entities"][0]["payload"]["friendly_name"] == "Living Room Lamp"
+    assert prompt["retrieved"]["plex_media"][0]["payload"]["title"] == "Movie Night"
+    assert fake_model.calls[0][2] == pytest.approx(0.8)
 
     assert len(build_calls) == 1
     assert main.METRICS["interpret"][-1]["total_ms"] == pytest.approx(5.0)
@@ -175,6 +276,7 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
 
     assert second_response.status_code == 200
     assert len(build_calls) == 1
+    assert len(fake_qdrant.search_calls) == 4
 
     for idx, utterance in enumerate(["movie time", "play some jazz"]):
         extra_payload = InterpretRequest(

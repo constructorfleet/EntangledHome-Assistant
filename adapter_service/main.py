@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import AsyncIterator, Callable, Final
+from typing import Any, AsyncIterator, Callable, Final, Sequence
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from starlette import status
 
+from .embeddings import EmbeddingService
+from .model import ModelClient
 from .schema import CatalogPayload, InterpretRequest, InterpretResponse
 
 SIGNATURE_HEADER = "X-Entangled-Signature"
@@ -124,8 +128,102 @@ class CatalogSliceCache:
         self._data.clear()
 
 
+class QdrantClient:
+    """Thin HTTP client for querying Qdrant collections."""
+
+    def __init__(
+        self,
+        *,
+        host: str | None,
+        api_key: str | None,
+        timeout: float,
+    ) -> None:
+        self._host = host
+        self._api_key = api_key
+        self._timeout = timeout
+
+    async def search(
+        self,
+        collection: str,
+        vector: Sequence[float],
+        *,
+        limit: int,
+        timeout: float | None = None,
+    ) -> list[dict[str, Any]]:
+        if not self._host or not vector:
+            return []
+
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["api-key"] = self._api_key
+
+        payload = {
+            "vector": list(vector),
+            "limit": limit,
+            "with_payload": True,
+            "with_vectors": False,
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._host,
+                timeout=timeout or self._timeout,
+            ) as client:
+                response = await client.post(
+                    f"/collections/{collection}/points/search",
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+        except httpx.HTTPError:
+            return []
+
+        data = response.json()
+        result = data.get("result")
+        if not isinstance(result, list):
+            return []
+
+        normalized: list[dict[str, Any]] = []
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            normalized.append(
+                {
+                    "id": item.get("id"),
+                    "score": float(item.get("score", 0.0)),
+                    "payload": item.get("payload", {}),
+                }
+            )
+        return normalized
+
+
 class StreamingModel:
-    """Default streaming adapter that yields a placeholder response."""
+    """Streaming adapter backed by embeddings, Qdrant, and a model client."""
+
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+        embedding_service: EmbeddingService | None = None,
+        qdrant_client: QdrantClient | None = None,
+        model_client: ModelClient | None = None,
+        embedding_model: str | None = None,
+        top_k: int = 32,
+    ) -> None:
+        self._settings = settings
+        self._top_k = top_k
+        self._embedding_service = embedding_service or EmbeddingService(
+            model=embedding_model or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"),
+        )
+        self._qdrant = qdrant_client or QdrantClient(
+            host=settings.qdrant_host,
+            api_key=settings.qdrant_api_key,
+            timeout=settings.qdrant_timeout_s,
+        )
+        self._model = model_client or ModelClient(
+            model=settings.model or "",
+            timeout=settings.model_timeout_s,
+        )
 
     async def stream(
         self,
@@ -133,13 +231,61 @@ class StreamingModel:
         catalog_slice: dict,
         settings: Settings,
     ) -> AsyncIterator[InterpretResponse]:
-        yield _fallback_response(utterance, reason="Adapter not implemented")
+        try:
+            vector = await self._embed_utterance(utterance)
+            retrieved = await self._retrieve_catalog(vector)
+            prompt = {
+                "utterance": utterance,
+                "catalog": catalog_slice,
+                "retrieved": retrieved,
+            }
+            async for response in self._model.stream(
+                utterance=utterance,
+                prompt=prompt,
+                threshold=settings.confidence_threshold,
+            ):
+                yield response
+        except Exception:
+            return
+
+    async def _embed_utterance(self, utterance: str) -> list[float]:
+        try:
+            vectors = await self._embedding_service.embed([utterance])
+        except Exception:
+            return []
+        if not vectors:
+            return []
+        return list(vectors[0])
+
+    async def _retrieve_catalog(self, vector: Sequence[float]) -> dict[str, list[dict[str, Any]]]:
+        if not vector:
+            return {"ha_entities": [], "plex_media": []}
+
+        tasks = []
+        timeout = self._settings.qdrant_timeout_s
+        for collection in ("ha_entities", "plex_media"):
+            tasks.append(
+                self._qdrant.search(
+                    collection,
+                    vector,
+                    limit=self._top_k,
+                    timeout=timeout,
+                )
+            )
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        payload: dict[str, list[dict[str, Any]]] = {"ha_entities": [], "plex_media": []}
+        for collection, result in zip(("ha_entities", "plex_media"), results):
+            if isinstance(result, Exception):
+                continue
+            payload[collection] = result
+        return payload
 
 
 SETTINGS: Final[Settings] = _load_settings()
 CATALOG_CACHE = CatalogSliceCache(SETTINGS.catalog_cache_size)
 METRICS: dict[str, list[dict[str, float]]] = {"interpret": []}
-_MODEL_STREAMER: StreamingModel = StreamingModel()
+_MODEL_STREAMER: StreamingModel = StreamingModel(settings=SETTINGS)
 app = FastAPI()
 
 
