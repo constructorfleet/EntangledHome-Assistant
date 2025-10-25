@@ -84,6 +84,13 @@ def _normalize_utterance(utterance: str) -> str:
     return " ".join(utterance.lower().split())
 
 
+def _fingerprint_catalog(catalog: CatalogPayload) -> str:
+    """Derive a stable fingerprint for catalog payload caching."""
+
+    serialized = catalog.model_dump_json()
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _build_catalog_slice(catalog: CatalogPayload) -> dict:
     """Produce a lightweight catalog slice for the model prompt."""
 
@@ -106,20 +113,21 @@ def _fallback_response(utterance: str, *, reason: str) -> InterpretResponse:
 
 
 class CatalogSliceCache:
-    """LRU cache keyed by normalized utterances for catalog slices."""
+    """LRU cache keyed by normalized utterances and catalog fingerprints."""
 
     def __init__(self, max_size: int) -> None:
         self._max_size = max_size
-        self._data: OrderedDict[str, dict] = OrderedDict()
+        self._data: OrderedDict[tuple[str, str], dict] = OrderedDict()
 
-    def get(self, key: str, builder: Callable[[], dict]) -> dict:
-        if key in self._data:
-            value = self._data.pop(key)
-            self._data[key] = value
+    def get(self, key: str, fingerprint: str, builder: Callable[[], dict]) -> dict:
+        cache_key = (key, fingerprint)
+        if cache_key in self._data:
+            value = self._data.pop(cache_key)
+            self._data[cache_key] = value
             return value
 
         value = builder()
-        self._data[key] = value
+        self._data[cache_key] = value
         while len(self._data) > self._max_size:
             self._data.popitem(last=False)
         return value
@@ -309,8 +317,11 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
         _enforce_signature(body, request.headers.get(SIGNATURE_HEADER))
 
     normalized = _normalize_utterance(payload.utterance)
+    catalog_fingerprint = _fingerprint_catalog(payload.catalog)
     catalog_slice = CATALOG_CACHE.get(
-        normalized, lambda: _build_catalog_slice(payload.catalog)
+        normalized,
+        catalog_fingerprint,
+        lambda: _build_catalog_slice(payload.catalog),
     )
 
     overall_start = _now()
