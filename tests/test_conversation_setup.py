@@ -62,7 +62,9 @@ async def test_setup_entry_stashes_shared_services(monkeypatch: pytest.MonkeyPat
     embed_texts = domain_data.get("embed_texts")
     assert callable(embed_texts)
     vectors = await embed_texts(["kitchen light", "movie scene"])
-    assert vectors == [[0.0], [0.0]]
+    assert len(vectors) == 2
+    assert all(len(vector) == 3 for vector in vectors)
+    assert all(any(component != 0.0 for component in vector) for vector in vectors)
 
     qdrant_upsert = domain_data.get("qdrant_upsert")
     assert callable(qdrant_upsert)

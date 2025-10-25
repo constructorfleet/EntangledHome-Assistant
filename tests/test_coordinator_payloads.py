@@ -216,11 +216,12 @@ def test_coordinator_upsert_points_uses_entry_provider() -> None:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"qdrant_upsert": upsert}
 
     coordinator = EntangledHomeCoordinator(hass, entry)
-    points_payload = [{"id": 1}]
+    points_payload = [{"id": 1, "vector": [0.9, 0.1]}]
 
     asyncio.run(coordinator._upsert_points("entities", points_payload))
 
     assert calls == [("entities", points_payload)]
+    assert calls[0][1][0]["vector"] == [0.9, 0.1]
 
 
 def test_coordinator_collect_plex_media_uses_entry_client() -> None:
