@@ -97,3 +97,5 @@ class InterpretResponse(BaseModel):
     targets: list[str] | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     confidence: float = Field(ge=0.0, le=1.0)
+    sensitive: bool = False
+    required_secondary_signals: list[str] = Field(default_factory=list)

@@ -26,6 +26,7 @@ from .const import (
     DOMAIN,
     OPT_CONFIDENCE_THRESHOLD,
     OPT_DEDUPLICATION_WINDOW,
+    OPT_ADAPTER_SHARED_SECRET,
     OPT_ENABLE_CATALOG_SYNC,
     OPT_ENABLE_CONFIDENCE_GATE,
     OPT_ENABLE_PLEX_SYNC,
@@ -74,6 +75,7 @@ USER_SCHEMA = vol.Schema(
         vol.Required(CONF_ADAPTER_URL): str,
         vol.Required(CONF_QDRANT_HOST): str,
         vol.Optional(CONF_QDRANT_API_KEY, default=""): str,
+        vol.Required(OPT_ADAPTER_SHARED_SECRET, default=""): str,
         vol.Required(OPT_ENABLE_CATALOG_SYNC, default=DEFAULT_CATALOG_SYNC): vol.Boolean(),
         vol.Required(
             OPT_ENABLE_CONFIDENCE_GATE,
@@ -120,6 +122,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             OPT_DEDUPLICATION_WINDOW: user_input[OPT_DEDUPLICATION_WINDOW],
             OPT_REFRESH_INTERVAL_MINUTES: user_input[OPT_REFRESH_INTERVAL_MINUTES],
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
+            OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],
         }
 
         return self.async_create_entry(title=TITLE, data=data, options=options)
@@ -161,6 +164,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 OPT_ENABLE_PLEX_SYNC,
                 default=self._bool_option(OPT_ENABLE_PLEX_SYNC, DEFAULT_PLEX_SYNC),
             ): vol.Boolean(),
+            vol.Required(
+                OPT_ADAPTER_SHARED_SECRET,
+                default=self._current_option(OPT_ADAPTER_SHARED_SECRET, ""),
+            ): str,
         }
 
         base_schema.update(self._guardrail_option_schema())
