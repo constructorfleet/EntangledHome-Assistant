@@ -31,6 +31,15 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
     asyncio.run(_run())
 
 
+def test_config_flow_declares_domain_constant() -> None:
+    """Config flow should expose the integration domain via class attribute."""
+
+    from custom_components.entangledhome.config_flow import ConfigFlowHandler
+    from custom_components.entangledhome.const import DOMAIN
+
+    assert ConfigFlowHandler.domain == DOMAIN
+
+
 def test_options_flow_uses_existing_values() -> None:
     """Existing option values should be surfaced as defaults in the form."""
 

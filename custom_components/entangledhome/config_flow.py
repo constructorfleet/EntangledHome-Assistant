@@ -8,6 +8,12 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
+
+try:  # pragma: no cover - fallback for older Home Assistant stubs
+    from homeassistant.config_entries import ConfigFlowResult, OptionsFlowResult
+except ImportError:  # pragma: no cover
+    from typing import Any as ConfigFlowResult  # type: ignore[assignment]
+    from typing import Any as OptionsFlowResult  # type: ignore[assignment]
 from homeassistant.core import callback
 
 from .const import (
@@ -97,12 +103,15 @@ USER_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+class ConfigFlowHandler(config_entries.ConfigFlow):
     """Handle the initial configuration flow."""
 
     VERSION = 1
+    domain = DOMAIN
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Display the user form and create the entry."""
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=USER_SCHEMA)
@@ -129,7 +138,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry) -> config_entries.ConfigFlow:
         return OptionsFlowHandler(config_entry)
 
 
@@ -139,7 +148,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> OptionsFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
