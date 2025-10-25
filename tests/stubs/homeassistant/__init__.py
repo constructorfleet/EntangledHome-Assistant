@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-__all__ = ["config_entries", "core", "helpers"]
+__all__ = ["config_entries", "core", "helpers", "components"]

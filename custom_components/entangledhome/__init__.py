@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_TELEMETRY, DEFAULT_OPTION_VALUES, DOMAIN
+from .adapter_client import AdapterClient
+from .const import (
+    CONF_ADAPTER_URL,
+    DATA_TELEMETRY,
+    DEFAULT_OPTION_VALUES,
+    DOMAIN,
+    OPT_ADAPTER_SHARED_SECRET,
+)
 from .coordinator import EntangledHomeCoordinator
+from .models import CatalogPayload
 from .telemetry import TelemetryRecorder
 
 PLATFORMS: list[str] = []
@@ -18,12 +26,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up EntangledHome from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    domain_entry: dict[str, Any] = {}
     coordinator = EntangledHomeCoordinator(hass, entry)
     telemetry = TelemetryRecorder()
-    hass.data[DOMAIN][entry.entry_id] = {
-        "coordinator": coordinator,
-        DATA_TELEMETRY: telemetry,
-    }
+    adapter_client = _build_adapter_client(entry)
+
+    domain_entry["coordinator"] = coordinator
+    domain_entry[DATA_TELEMETRY] = telemetry
+    domain_entry["adapter_client"] = adapter_client
+    domain_entry["embed_texts"] = _build_embedder()
+    domain_entry["qdrant_upsert"] = _build_qdrant_upsert()
+    domain_entry["catalog_provider"] = _build_catalog_provider(coordinator)
+
+    hass.data[DOMAIN][entry.entry_id] = domain_entry
 
     await coordinator.async_config_entry_first_refresh()
 
@@ -66,3 +81,40 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str) -> EntangledHomeCoordin
     if not stored:
         return None
     return stored.get("coordinator")
+
+
+def _build_adapter_client(entry: ConfigEntry) -> AdapterClient:
+    data = getattr(entry, "data", {}) or {}
+    options = getattr(entry, "options", {}) or {}
+
+    endpoint = data.get(CONF_ADAPTER_URL) or ""
+    shared_secret = options.get(OPT_ADAPTER_SHARED_SECRET)
+
+    client = AdapterClient(endpoint)
+    if shared_secret:
+        client.set_shared_secret(shared_secret)
+    return client
+
+
+def _build_embedder() -> Callable[[list[str]], Awaitable[list[list[float]]]]:
+    async def _embed(texts: list[str]) -> list[list[float]]:
+        return [[0.0] for _ in texts]
+
+    return _embed
+
+
+def _build_qdrant_upsert() -> Callable[[str, list[dict[str, Any]]], Awaitable[None]]:
+    async def _upsert(_: str, __: list[dict[str, Any]]) -> None:
+        return None
+
+    return _upsert
+
+
+def _build_catalog_provider(
+    coordinator: EntangledHomeCoordinator,
+) -> Callable[[], Awaitable[CatalogPayload]]:
+    async def _provider() -> CatalogPayload:
+        exporter = coordinator._build_exporter(getattr(coordinator.config_entry, "options", {}))
+        return await exporter.run_once()
+
+    return _provider

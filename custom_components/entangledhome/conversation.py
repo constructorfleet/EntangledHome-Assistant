@@ -10,15 +10,21 @@ import json
 from typing import Any, Awaitable, Callable, Iterable, Mapping
 import time
 
+from homeassistant.components import conversation as conversation_domain
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .adapter_client import AdapterClient
 from .const import (
+    CONF_ADAPTER_URL,
+    DATA_TELEMETRY,
     DEFAULT_CONFIDENCE_GATE,
     DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_DEDUPLICATION_WINDOW,
     DEFAULT_NIGHT_MODE_ENABLED,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_START_HOUR,
+    DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_CONFIDENCE_THRESHOLD,
     OPT_DEDUPLICATION_WINDOW,
@@ -27,6 +33,7 @@ from .const import (
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
 )
+from .intent_handlers import async_execute_intent
 from .models import CatalogPayload, InterpretResponse
 from .telemetry import TelemetryRecorder
 
@@ -221,3 +228,80 @@ class EntangledHomeConversationHandler:
             )
         except Exception:  # pragma: no cover - telemetry should not disrupt handling
             pass
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Register the EntangledHome conversation agent for ``entry``."""
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    entry_data: dict[str, Any] = domain_data.setdefault(entry.entry_id, {})
+
+    adapter = _resolve_adapter(entry, entry_data)
+    catalog_provider = _resolve_catalog_provider(entry, entry_data)
+    telemetry = entry_data.get(DATA_TELEMETRY)
+
+    handler = EntangledHomeConversationHandler(
+        hass,
+        entry,
+        adapter_client=adapter,
+        catalog_provider=catalog_provider,
+        intent_executor=async_execute_intent,
+        telemetry_recorder=telemetry,
+    )
+
+    entry_data["conversation_handler"] = handler
+
+    await conversation_domain.async_set_agent(hass, DOMAIN, handler)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Remove the conversation agent when the config entry unloads."""
+
+    domain_data = hass.data.get(DOMAIN, {})
+    entry_data = domain_data.get(entry.entry_id)
+    if isinstance(entry_data, dict):
+        entry_data.pop("conversation_handler", None)
+
+    await conversation_domain.async_unset_agent(hass, DOMAIN)
+    return True
+
+
+def _resolve_adapter(entry: ConfigEntry, entry_data: dict[str, Any]) -> AdapterClient:
+    adapter = entry_data.get("adapter_client")
+    if isinstance(adapter, AdapterClient):
+        return adapter
+
+    data = getattr(entry, "data", {}) or {}
+    endpoint = data.get(CONF_ADAPTER_URL) or ""
+    adapter = AdapterClient(endpoint)
+    entry_data["adapter_client"] = adapter
+
+    secret = (getattr(entry, "options", {}) or {}).get(OPT_ADAPTER_SHARED_SECRET)
+    if secret:
+        adapter.set_shared_secret(secret)
+
+    return adapter
+
+
+def _resolve_catalog_provider(
+    entry: ConfigEntry, entry_data: dict[str, Any]
+) -> CatalogProvider:
+    provider = entry_data.get("catalog_provider")
+    if callable(provider):
+        return provider  # type: ignore[return-value]
+
+    coordinator = entry_data.get("coordinator")
+    if coordinator is not None:
+        async def _coordinator_catalog() -> CatalogPayload:
+            exporter = coordinator._build_exporter(getattr(entry, "options", {}))
+            return await exporter.run_once()
+
+        entry_data["catalog_provider"] = _coordinator_catalog
+        return _coordinator_catalog
+
+    async def _empty_catalog() -> CatalogPayload:
+        return CatalogPayload()
+
+    entry_data["catalog_provider"] = _empty_catalog
+    return _empty_catalog
