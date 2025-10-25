@@ -9,7 +9,7 @@ import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Final, Sequence
+from typing import Any, AsyncIterator, Callable, Final, Mapping, Sequence
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -100,6 +100,14 @@ def _build_catalog_slice(catalog: CatalogPayload) -> dict:
         "scenes": [scene.model_dump(exclude_none=True) for scene in catalog.scenes],
         "plex_media": [item.model_dump(exclude_none=True) for item in catalog.plex_media],
     }
+
+
+def _serialize_intents(
+    intents: Mapping[str, Mapping[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    """Convert mapping-based intents into JSON-serializable dicts."""
+
+    return {intent: dict(config) for intent, config in (intents or {}).items()}
 
 
 def _fallback_response(utterance: str, *, reason: str) -> InterpretResponse:
@@ -237,6 +245,7 @@ class StreamingModel:
         self,
         utterance: str,
         catalog_slice: dict,
+        intents: Mapping[str, Mapping[str, Any]] | None,
         settings: Settings,
     ) -> AsyncIterator[InterpretResponse]:
         try:
@@ -246,6 +255,7 @@ class StreamingModel:
                 "utterance": utterance,
                 "catalog": catalog_slice,
                 "retrieved": retrieved,
+                "intents": _serialize_intents(intents),
             }
             async for response in self._model.stream(
                 utterance=utterance,
@@ -331,6 +341,7 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
     async for chunk in _MODEL_STREAMER.stream(
         payload.utterance,
         catalog_slice,
+        payload.intents,
         SETTINGS,
     ):
         if stream_start is None:

@@ -49,9 +49,17 @@ class DummyAdapter:
         self._responses = deque(responses)
         self.calls: list[str] = []
         self.shared_secret: str | None = None
+        self.intents_payloads: list[dict[str, dict[str, object]] | None] = []
 
-    async def interpret(self, utterance: str, catalog: CatalogPayload) -> InterpretResponse:
+    async def interpret(
+        self,
+        utterance: str,
+        catalog: CatalogPayload,
+        *,
+        intents: dict[str, dict[str, object]] | None = None,
+    ) -> InterpretResponse:
         self.calls.append(utterance)
+        self.intents_payloads.append(intents)
         try:
             return self._responses.popleft()
         except IndexError:  # pragma: no cover - defensive guard

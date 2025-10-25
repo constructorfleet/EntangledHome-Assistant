@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 
@@ -34,9 +34,19 @@ class AdapterClient:
         self._client = client
         self._shared_secret = shared_secret or ""
 
-    async def interpret(self, utterance: str, catalog: CatalogPayload) -> InterpretResponse:
+    async def interpret(
+        self,
+        utterance: str,
+        catalog: CatalogPayload,
+        *,
+        intents: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> InterpretResponse:
         """Send the utterance and catalog to the adapter and parse the response."""
-        request_model = InterpretRequest(utterance=utterance, catalog=catalog)
+        request_model = InterpretRequest(
+            utterance=utterance,
+            catalog=catalog,
+            intents=self._normalize_intents(intents),
+        )
         payload = request_model.model_dump(mode="json")
 
         client = self._client
@@ -70,6 +80,12 @@ class AdapterClient:
             self._shared_secret.encode("utf-8"), body, hashlib.sha256
         ).hexdigest()
         return digest
+
+    @staticmethod
+    def _normalize_intents(
+        intents: Mapping[str, Mapping[str, Any]] | None,
+    ) -> dict[str, dict[str, Any]]:
+        return {key: dict(value) for key, value in (intents or {}).items()}
 
     def set_shared_secret(self, shared_secret: str | None) -> None:
         """Update the shared secret used for signing requests."""

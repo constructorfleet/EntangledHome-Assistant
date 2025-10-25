@@ -21,11 +21,13 @@ from .const import (
     CONF_ADAPTER_URL,
     DATA_TELEMETRY,
     DEFAULT_OPTION_VALUES,
+    DEFAULT_INTENTS_CONFIG,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_ALLOWED_HOURS,
     OPT_DANGEROUS_INTENTS,
     OPT_DISABLED_INTENTS,
+    OPT_INTENTS_CONFIG,
     OPT_INTENT_THRESHOLDS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
 )
@@ -60,6 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_entry["catalog_provider"] = _build_catalog_provider(coordinator)
     domain_entry["secondary_signal_provider"] = build_secondary_signal_provider(hass, entry)
     domain_entry["guardrail_config"] = _parse_guardrail_options(entry.options)
+    domain_entry["intents_config"] = _parse_intents_config(entry.options)
 
     hass.data[DOMAIN][entry.entry_id] = domain_entry
 
@@ -84,6 +87,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if isinstance(domain_entry, dict):
         guardrails = _parse_guardrail_options(entry.options)
         domain_entry["guardrail_config"] = guardrails
+        domain_entry["intents_config"] = _parse_intents_config(entry.options)
         handler = domain_entry.get("conversation_handler")
         if handler is not None:
             try:
@@ -91,6 +95,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
                 if isinstance(handler, EntangledHomeConversationHandler):
                     handler.set_guardrail_config(guardrails)
+                    handler.set_intents_config(domain_entry["intents_config"])
             except Exception:  # pragma: no cover - defensive guard
                 _LOGGER.debug("Failed to update guardrail config on handler", exc_info=True)
 
@@ -191,6 +196,109 @@ def _parse_guardrail_options(options: Mapping[str, Any] | None) -> dict[str, Any
         OPT_ALLOWED_HOURS: allowed_hours,
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES: windows,
     }
+
+
+def _parse_intents_config(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
+    options = options or {}
+    raw = options.get(OPT_INTENTS_CONFIG, DEFAULT_INTENTS_CONFIG)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {}
+        else:
+            raw = parsed if isinstance(parsed, Mapping) else {}
+    intents: dict[str, dict[str, Any]] = {}
+
+    for intent, base in DEFAULT_INTENTS_CONFIG.items():
+        intents[intent] = _normalize_intent_config(base, None)
+
+    if isinstance(raw, Mapping):
+        for intent, override in raw.items():
+            if isinstance(override, Mapping):
+                intents[intent] = _normalize_intent_config(
+                    DEFAULT_INTENTS_CONFIG.get(intent), override
+                )
+
+    return intents
+
+
+def _normalize_intent_config(
+    base: Mapping[str, Any] | None,
+    override: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    config: dict[str, Any] = {}
+
+    base_enabled = _coerce_bool((base or {}).get("enabled", True))
+    base_slots = _normalize_slots((base or {}).get("slots", ()))
+    base_threshold = _coerce_threshold((base or {}).get("threshold"))
+
+    config["enabled"] = base_enabled
+    config["slots"] = base_slots
+    if base_threshold is not None:
+        config["threshold"] = base_threshold
+
+    if not override:
+        return config
+
+    if "enabled" in override:
+        config["enabled"] = _coerce_bool(override.get("enabled"))
+
+    if "slots" in override:
+        slots = _normalize_slots(override.get("slots", ()))
+        config["slots"] = slots
+
+    if "threshold" in override:
+        threshold = _coerce_threshold(override.get("threshold"))
+        if threshold is not None:
+            config["threshold"] = threshold
+        else:
+            config.pop("threshold", None)
+
+    return config
+
+
+def _normalize_slots(value: Any) -> list[str]:
+    slots: list[str] = []
+    seen: set[str] = set()
+
+    iterable: Iterable[str]
+    if isinstance(value, str):
+        iterable = [value]
+    elif isinstance(value, Mapping):
+        iterable = [str(part).strip() for part in value.values()]
+    else:
+        try:
+            iterable = list(value)
+        except TypeError:
+            iterable = []
+
+    for slot in iterable:
+        slot_name = str(slot).strip()
+        if not slot_name or slot_name in seen:
+            continue
+        seen.add(slot_name)
+        slots.append(slot_name)
+
+    return slots
+
+
+def _coerce_threshold(value: Any) -> float | None:
+    if value in (None, "", False):
+        return None
+    try:
+        threshold = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not 0.0 <= threshold <= 1.0:
+        return None
+    return threshold
+
+
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 def _is_number(value: Any) -> bool:

@@ -19,9 +19,17 @@ class DummyAdapter:
     def __init__(self, response: InterpretResponse) -> None:
         self.response = response
         self.calls: list[tuple[str, CatalogPayload]] = []
+        self.intents_calls: list[dict[str, dict[str, object]] | None] = []
 
-    async def interpret(self, utterance: str, catalog: CatalogPayload) -> InterpretResponse:
+    async def interpret(
+        self,
+        utterance: str,
+        catalog: CatalogPayload,
+        *,
+        intents: dict[str, dict[str, object]] | None = None,
+    ) -> InterpretResponse:
         self.calls.append((utterance, catalog))
+        self.intents_calls.append(intents)
         return self.response
 
 

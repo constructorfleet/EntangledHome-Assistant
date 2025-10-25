@@ -54,12 +54,20 @@ def _sample_catalog() -> CatalogPayload:
 def test_interpret_request_round_trip() -> None:
     """InterpretRequest should serialize and deserialize without data loss."""
     catalog = _sample_catalog()
-    request = InterpretRequest(utterance="Turn on the kitchen lights", catalog=catalog)
+    request = InterpretRequest(
+        utterance="Turn on the kitchen lights",
+        catalog=catalog,
+        intents={
+            "turn_on": {"enabled": True, "slots": ["area", "targets"], "threshold": 0.75},
+            "custom": {"enabled": False, "slots": []},
+        },
+    )
 
     raw = request.model_dump()
     parsed = InterpretRequest.model_validate(raw)
 
     assert parsed == request
+    assert parsed.intents["turn_on"]["threshold"] == pytest.approx(0.75)
 
 
 def test_interpret_response_confidence_required() -> None:
