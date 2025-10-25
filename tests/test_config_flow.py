@@ -11,9 +11,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STRINGS_PATH = REPO_ROOT / "custom_components/entangledhome/strings.json"
-TRANSLATIONS_EN_PATH = (
-    REPO_ROOT / "custom_components/entangledhome/translations/en.json"
-)
+TRANSLATIONS_EN_PATH = REPO_ROOT / "custom_components/entangledhome/translations/en.json"
 
 LOCALIZATION_PATHS = [
     pytest.param(STRINGS_PATH, id="strings"),

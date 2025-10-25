@@ -24,6 +24,7 @@ pytestmark = pytest.mark.asyncio
 
 
 if "httpx" not in sys.modules:  # pragma: no cover - executed in test environment
+
     class _StubAsyncClient:
         """Minimal httpx.AsyncClient stand-in for tests."""
 

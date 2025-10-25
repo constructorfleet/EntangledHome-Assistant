@@ -188,6 +188,7 @@ class GuardrailBundle:
                 value = parsed
         return value if isinstance(value, Mapping) else {}
 
+
 @dataclass
 class ConversationResult:
     """Minimal result structure returned from guardrail decisions."""
@@ -235,9 +236,7 @@ class EntangledHomeConversationHandler:
 
         self._guardrails = GuardrailBundle.from_mapping(guardrail_config)
 
-    def set_intents_config(
-        self, intents_config: Mapping[str, Mapping[str, Any]] | None
-    ) -> None:
+    def set_intents_config(self, intents_config: Mapping[str, Mapping[str, Any]] | None) -> None:
         """Update the intents metadata passed to the adapter."""
 
         self._intents_config = self._sanitize_intents(intents_config)
@@ -360,11 +359,7 @@ class EntangledHomeConversationHandler:
             if inspect.isawaitable(result):
                 await result
         except IntentHandlingError as exc:
-            message = (
-                f"Intent execution failed: {exc}"
-                if str(exc)
-                else "Intent execution failed."
-            )
+            message = f"Intent execution failed: {exc}" if str(exc) else "Intent execution failed."
             return self._executor_failure_result(
                 utterance=utterance,
                 response=response,
@@ -416,9 +411,7 @@ class EntangledHomeConversationHandler:
             return await provider_result  # type: ignore[return-value]
         return provider_result  # type: ignore[return-value]
 
-    def _confidence_blocked(
-        self, response: InterpretResponse, options: Mapping[str, Any]
-    ) -> bool:
+    def _confidence_blocked(self, response: InterpretResponse, options: Mapping[str, Any]) -> bool:
         if not options.get(OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE):
             return False
         threshold = float(options.get(OPT_CONFIDENCE_THRESHOLD, DEFAULT_CONFIDENCE_THRESHOLD))
@@ -739,15 +732,14 @@ def _resolve_adapter(entry: ConfigEntry, entry_data: dict[str, Any]) -> AdapterC
     return adapter
 
 
-def _resolve_catalog_provider(
-    entry: ConfigEntry, entry_data: dict[str, Any]
-) -> CatalogProvider:
+def _resolve_catalog_provider(entry: ConfigEntry, entry_data: dict[str, Any]) -> CatalogProvider:
     provider = entry_data.get("catalog_provider")
     if callable(provider):
         return provider  # type: ignore[return-value]
 
     coordinator = entry_data.get("coordinator")
     if coordinator is not None:
+
         async def _coordinator_catalog() -> CatalogPayload:
             exporter = coordinator._build_exporter(getattr(entry, "options", {}))
             return await exporter.run_once()

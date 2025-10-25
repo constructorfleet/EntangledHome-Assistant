@@ -46,6 +46,7 @@ def test_requirements_file_exists_for_pip_workflow() -> None:
     missing = EXPECTED_TEST_PACKAGES - entries
     assert not missing, f"requirements-test.txt missing: {sorted(missing)}"
 
+
 def test_uv_lock_includes_required_packages() -> None:
     """uv.lock should record fastapi and uvicorn resolutions for adapter and HA tests."""
 

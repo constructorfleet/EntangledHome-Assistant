@@ -30,7 +30,9 @@ async def test_diagnostics_returns_recent_commands() -> None:
 
     recorder = TelemetryRecorder(
         max_events=5,
-        clock=ClockStub(datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc), timedelta(milliseconds=10)),
+        clock=ClockStub(
+            datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc), timedelta(milliseconds=10)
+        ),
     )
     response = InterpretResponse(
         intent="turn_on",

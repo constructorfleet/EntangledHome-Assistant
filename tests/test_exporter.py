@@ -38,9 +38,7 @@ def test_exporter_batches_embeddings_and_logs_metrics() -> None:
             embed_texts=embed_texts,
             upsert_points=upsert_points,
             metrics_logger=metrics_logger,
-            area_source=lambda: [
-                {"area_id": "kitchen", "name": "Kitchen", "aliases": ["cooking"]}
-            ],
+            area_source=lambda: [{"area_id": "kitchen", "name": "Kitchen", "aliases": ["cooking"]}],
             entity_source=lambda: [
                 {
                     "entity_id": "light.kitchen",
@@ -55,9 +53,7 @@ def test_exporter_batches_embeddings_and_logs_metrics() -> None:
                     "area_id": "living_room",
                 },
             ],
-            scene_source=lambda: [
-                {"entity_id": "scene.movie", "name": "Movie", "aliases": []}
-            ],
+            scene_source=lambda: [{"entity_id": "scene.movie", "name": "Movie", "aliases": []}],
             plex_source=lambda: [
                 {
                     "rating_key": "1",
@@ -83,17 +79,17 @@ def test_exporter_batches_embeddings_and_logs_metrics() -> None:
 
         payload = await exporter.run_once()
 
-    # Entities and Plex media should be embedded in batches of two.
+        # Entities and Plex media should be embedded in batches of two.
         batch_sizes = [len(batch) for batch in embed_calls]
         assert batch_sizes == [2, 2, 1]
 
-    # Upserts should target both HA entities and Plex collections with matching counts.
+        # Upserts should target both HA entities and Plex collections with matching counts.
         collection_counts = Counter(name for name, _ in upsert_calls)
         assert collection_counts == {"ha_entities": 1, "plex_media": 2}
         assert sum(len(points) for name, points in upsert_calls if name == "ha_entities") == 2
         assert sum(len(points) for name, points in upsert_calls if name == "plex_media") == 3
 
-    # Metrics should include counts and batch size information.
+        # Metrics should include counts and batch size information.
         assert metrics_events[-1][0] == "catalog_export"
         metrics = metrics_events[-1][1]
         assert metrics["counts"] == {
@@ -105,7 +101,7 @@ def test_exporter_batches_embeddings_and_logs_metrics() -> None:
         assert metrics["batch_size"] == 2
         assert metrics["retries"] == {"ha_entities": 0, "plex_media": 0}
 
-    # The payload returned to the caller should mirror the exported catalog.
+        # The payload returned to the caller should mirror the exported catalog.
         assert len(payload.entities) == 2
         assert len(payload.plex_media) == 3
 

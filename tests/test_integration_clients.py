@@ -62,7 +62,9 @@ async def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
 
     class FakeClient:
         def __init__(self, *, base_url: str, headers: dict[str, str], timeout: float) -> None:
-            requests.append(("__init__", {"base_url": base_url, "headers": headers, "timeout": timeout}))
+            requests.append(
+                ("__init__", {"base_url": base_url, "headers": headers, "timeout": timeout})
+            )
 
         async def __aenter__(self) -> FakeClient:
             return self

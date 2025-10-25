@@ -1,4 +1,5 @@
 """Documentation guardrail tests."""
+
 from __future__ import annotations
 
 import asyncio
@@ -57,12 +58,7 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
     )
 
     documentation_manifest = json.loads(
-        _read_text(
-            REPO_ROOT
-            / "custom_components"
-            / "entangledhome"
-            / "manifest.json"
-        )
+        _read_text(REPO_ROOT / "custom_components" / "entangledhome" / "manifest.json")
     )
     assert (
         documentation_manifest.get("documentation")
@@ -129,6 +125,7 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     """Custom sentence templates should override packaged defaults after reload."""
 
     DOMAIN = "entangledhome"
+
     class _HttpxAsyncClient:  # pragma: no cover - stub methods unused in test
         def __init__(self, *args, **kwargs) -> None:
             self._closed = False
@@ -149,9 +146,7 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     import custom_components.entangledhome as integration
 
     hass = HomeAssistant()
-    hass.config = SimpleNamespace(
-        path=lambda *parts: str(tmp_path.joinpath(*parts))
-    )
+    hass.config = SimpleNamespace(path=lambda *parts: str(tmp_path.joinpath(*parts)))
 
     def _update_entry(entry: ConfigEntry, *, options: dict[str, Any] | None = None) -> None:
         if options is not None:
@@ -171,13 +166,7 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
         default_turn_on = templates.get("turn_on", "")
         assert "turn on" in default_turn_on.lower()
 
-        override_dir = (
-            tmp_path
-            / "custom_components"
-            / "entangledhome"
-            / "sentences"
-            / "en"
-        )
+        override_dir = tmp_path / "custom_components" / "entangledhome" / "sentences" / "en"
         override_dir.mkdir(parents=True, exist_ok=True)
         override_turn_on = override_dir / "turn_on.yaml"
         override_turn_on.write_text(

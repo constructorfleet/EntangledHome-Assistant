@@ -266,9 +266,9 @@ def test_resolve_scene_entity_id_matches_alias() -> None:
         plex_media=[],
     )
 
-    assert (
-        resolve_scene_entity_id("Wind-Down", catalog) == "scene.relax_evening"
-    ), "Alias should resolve via fuzzy matching"
+    assert resolve_scene_entity_id("Wind-Down", catalog) == "scene.relax_evening", (
+        "Alias should resolve via fuzzy matching"
+    )
 
 
 def test_executor_registry_lists_supported_intents() -> None:
@@ -307,9 +307,7 @@ async def test_async_execute_intent_errors_for_unknown_intent(
     with pytest.raises(IntentHandlingError) as excinfo:
         await async_execute_intent(fake_hass, response, catalog=catalog)
 
-    assert (
-        str(excinfo.value) == "No executor registered for intent 'unsupported_intent'"
-    )
+    assert str(excinfo.value) == "No executor registered for intent 'unsupported_intent'"
 
 
 async def test_async_execute_intent_errors_when_intent_disabled(

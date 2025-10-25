@@ -18,7 +18,9 @@ class EmbeddingServiceError(RuntimeError):
 class EmbeddingBackend(Protocol):
     """Protocol for embedding backends used by :class:`EmbeddingService`."""
 
-    async def generate(self, model: str, texts: list[str]) -> list[Sequence[float]]:  # pragma: no cover - Protocol
+    async def generate(
+        self, model: str, texts: list[str]
+    ) -> list[Sequence[float]]:  # pragma: no cover - Protocol
         """Return embeddings for the provided texts."""
 
 

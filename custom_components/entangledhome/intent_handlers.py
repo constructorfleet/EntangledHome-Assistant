@@ -334,6 +334,7 @@ def render_sensor_report(
 
     state_machine = getattr(hass, "states", None)
     if state_machine is None:
+
         def _get_state(_: str) -> Any:
             return None
     else:
@@ -414,7 +415,9 @@ class _SlotResolver:
 
     __slots__ = ("_params", "_slots")
 
-    def __init__(self, response: InterpretResponse, intent_config: Mapping[str, Any] | None) -> None:
+    def __init__(
+        self, response: InterpretResponse, intent_config: Mapping[str, Any] | None
+    ) -> None:
         params = getattr(response, "params", {}) or {}
         self._params: dict[str, Any] = dict(params) if isinstance(params, Mapping) else {}
         self._slots: tuple[str, ...] = tuple(_coerce_slots(intent_config))
@@ -467,9 +470,7 @@ def _resolve_area(response: InterpretResponse, resolver: _SlotResolver) -> str |
     return None
 
 
-def _resolve_targets(
-    response: InterpretResponse, resolver: _SlotResolver
-) -> list[str] | None:
+def _resolve_targets(response: InterpretResponse, resolver: _SlotResolver) -> list[str] | None:
     if response.targets:
         return list(response.targets)
     candidates = [

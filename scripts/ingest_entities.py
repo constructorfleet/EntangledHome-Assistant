@@ -156,15 +156,16 @@ async def _run() -> None:
 
     embed_service = EmbeddingService(model=args.embedding_model)
 
-    async with HomeAssistantRegistryClient(
-        args.ha_url, args.ha_token, timeout=args.timeout
-    ) as ha_client, QdrantHttpClient(
-        args.qdrant_url,
-        api_key=args.qdrant_key,
-        timeout=args.timeout,
-        batch_size=args.qdrant_batch,
-        max_retries=args.qdrant_retries,
-    ) as qdrant:
+    async with (
+        HomeAssistantRegistryClient(args.ha_url, args.ha_token, timeout=args.timeout) as ha_client,
+        QdrantHttpClient(
+            args.qdrant_url,
+            api_key=args.qdrant_key,
+            timeout=args.timeout,
+            batch_size=args.qdrant_batch,
+            max_retries=args.qdrant_retries,
+        ) as qdrant,
+    ):
         payload = await ingest_entities(
             ha_client,
             embed_texts=embed_service.embed,

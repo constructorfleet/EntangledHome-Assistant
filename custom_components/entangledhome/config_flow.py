@@ -57,7 +57,9 @@ from .const import (
 )
 
 
-def _coerce_json_object(value: object, *, default: Mapping[str, object] | None = None) -> dict[str, object]:
+def _coerce_json_object(
+    value: object, *, default: Mapping[str, object] | None = None
+) -> dict[str, object]:
     if value in (None, ""):
         return dict(default or {})
     if isinstance(value, dict):
@@ -151,6 +153,7 @@ def _validate_intents_config(value: object) -> dict[str, dict[str, object]]:
         intents[intent] = {str(key): val for key, val in raw.items()}
     return intents
 
+
 GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], ...] = (
     (
         "float",
@@ -243,9 +246,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
     VERSION = 1
     domain = DOMAIN
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Display the user form and create the entry."""
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=USER_SCHEMA)
@@ -314,9 +315,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             "description_placeholders": description_placeholders,
         }
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> OptionsFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> OptionsFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
@@ -330,9 +329,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             ): vol.Boolean(),
             vol.Required(
                 OPT_ENABLE_CONFIDENCE_GATE,
-                default=self._bool_option(
-                    OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE
-                ),
+                default=self._bool_option(OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE),
             ): vol.Boolean(),
             vol.Required(
                 OPT_REFRESH_INTERVAL_MINUTES,

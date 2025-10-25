@@ -165,9 +165,7 @@ async def test_guardrail_logging_records_block(caplog: pytest.LogCaptureFixture)
         result = await handler.async_handle("Unlock the front door")
 
     assert result.success is False
-    guardrail_records = [
-        rec for rec in caplog.records if rec.message == "entangledhome.guardrail"
-    ]
+    guardrail_records = [rec for rec in caplog.records if rec.message == "entangledhome.guardrail"]
     assert len(guardrail_records) == 1
     record = guardrail_records[0]
     payload = record.entangled_guardrail
