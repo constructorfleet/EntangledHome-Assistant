@@ -91,7 +91,7 @@ jobs:
 
       - name: Run pytest (Adapter Service)
         run: |
-          uv run pytest adapter_service/tests --cov=adapter_service --cov-report=xml:coverage-adapter-service.xml --cov-report=term
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest adapter_service/tests --cov=adapter_service --cov-report=xml:coverage-adapter-service.xml --cov-report=term
 
       - name: Upload coverage
         if: always()
