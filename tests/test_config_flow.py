@@ -191,3 +191,47 @@
 #     import importlib
 
 #     return importlib.import_module("custom_components.entangledhome.config_flow")
+
+
+from types import SimpleNamespace
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_config_flow_user_form_includes_guardrail_controls() -> None:
+    """Guardrail options should be exposed with expected defaults."""
+
+    from custom_components.entangledhome.config_flow import ConfigFlowHandler
+    from custom_components.entangledhome.const import (
+        DEFAULT_CONFIDENCE_THRESHOLD,
+        DEFAULT_DEDUPLICATION_WINDOW,
+        DEFAULT_NIGHT_MODE_END_HOUR,
+        DEFAULT_NIGHT_MODE_ENABLED,
+        DEFAULT_NIGHT_MODE_START_HOUR,
+        OPT_CONFIDENCE_THRESHOLD,
+        OPT_DEDUPLICATION_WINDOW,
+        OPT_NIGHT_MODE_ENABLED,
+        OPT_NIGHT_MODE_END_HOUR,
+        OPT_NIGHT_MODE_START_HOUR,
+    )
+
+    flow = ConfigFlowHandler()
+    flow.hass = SimpleNamespace()
+
+    result = await flow.async_step_user(user_input=None)
+    assert result["type"] == "form"
+
+    schema = result["data_schema"].schema
+    defaults = {
+        getattr(marker, "schema", getattr(marker, "key", None)): (
+            marker.default() if callable(getattr(marker, "default", None)) else getattr(marker, "default", None)
+        )
+        for marker in schema
+    }
+
+    assert defaults[OPT_CONFIDENCE_THRESHOLD] == DEFAULT_CONFIDENCE_THRESHOLD
+    assert defaults[OPT_NIGHT_MODE_ENABLED] == DEFAULT_NIGHT_MODE_ENABLED
+    assert defaults[OPT_NIGHT_MODE_START_HOUR] == DEFAULT_NIGHT_MODE_START_HOUR
+    assert defaults[OPT_NIGHT_MODE_END_HOUR] == DEFAULT_NIGHT_MODE_END_HOUR
+    assert defaults[OPT_DEDUPLICATION_WINDOW] == DEFAULT_DEDUPLICATION_WINDOW

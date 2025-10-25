@@ -7,17 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import (
-    DEFAULT_CATALOG_SYNC,
-    DEFAULT_CONFIDENCE_GATE,
-    DEFAULT_PLEX_SYNC,
-    DEFAULT_REFRESH_INTERVAL_MINUTES,
-    DOMAIN,
-    OPT_ENABLE_CATALOG_SYNC,
-    OPT_ENABLE_CONFIDENCE_GATE,
-    OPT_ENABLE_PLEX_SYNC,
-    OPT_REFRESH_INTERVAL_MINUTES,
-)
+from .const import DEFAULT_OPTION_VALUES, DOMAIN
 from .coordinator import EntangledHomeCoordinator
 
 PLATFORMS: list[str] = []
@@ -58,12 +48,7 @@ def _ensure_default_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     options: dict[str, Any] = dict(entry.options)
     updated = False
 
-    for option_key, default_value in (
-        (OPT_ENABLE_CATALOG_SYNC, DEFAULT_CATALOG_SYNC),
-        (OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE),
-        (OPT_REFRESH_INTERVAL_MINUTES, DEFAULT_REFRESH_INTERVAL_MINUTES),
-        (OPT_ENABLE_PLEX_SYNC, DEFAULT_PLEX_SYNC),
-    ):
+    for option_key, default_value in DEFAULT_OPTION_VALUES:
         if option_key not in options:
             options[option_key] = default_value
             updated = True
