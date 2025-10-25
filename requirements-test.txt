@@ -7,4 +7,3 @@ uvicorn[standard]>=0.38.0
 coverage[toml]>=7.0.0
 httpx>=0.28.0
 jsonschema>=4.23.0
-pre-commit>=3.8.0

@@ -15,7 +15,7 @@ EXPECTED_TEST_PACKAGES = {
     "uvicorn[standard]",
 }
 LOCKFILE = REPO_ROOT / "uv.lock"
-LOCK_PACKAGES = {"fastapi", "uvicorn", "pre-commit"}
+LOCK_PACKAGES = {"fastapi", "uvicorn"}
 
 
 def _normalize_requirement(entry: str) -> str:
@@ -46,20 +46,8 @@ def test_requirements_file_exists_for_pip_workflow() -> None:
     missing = EXPECTED_TEST_PACKAGES - entries
     assert not missing, f"requirements-test.txt missing: {sorted(missing)}"
 
-
-def test_precommit_hooks_cover_linters() -> None:
-    """Pre-commit configuration should include lint and type-check hooks."""
-
-    config = REPO_ROOT / ".pre-commit-config.yaml"
-    assert config.exists(), "Missing .pre-commit-config.yaml"
-
-    content = config.read_text()
-    for hook in ("ruff", "black", "isort", "mypy"):
-        assert hook in content, f"Expected {hook} hook in pre-commit configuration"
-
-
 def test_uv_lock_includes_required_packages() -> None:
-    """uv.lock should record fastapi, uvicorn, and pre-commit resolutions."""
+    """uv.lock should record fastapi and uvicorn resolutions for adapter and HA tests."""
 
     lock_text = LOCKFILE.read_text()
     for package in LOCK_PACKAGES:
