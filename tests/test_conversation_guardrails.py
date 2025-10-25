@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 import sys
 
 
@@ -134,6 +134,7 @@ def _handler(
     monotonic_values: Sequence[float] | None = None,
     now: datetime | None = None,
     telemetry: TelemetryStub | None = None,
+    secondary_signals: Callable[[], Iterable[str]] | None = None,
 ) -> EntangledHomeConversationHandler:
     hass = SimpleNamespace()
     entry = SimpleNamespace(options=options)
@@ -148,6 +149,7 @@ def _handler(
         intent_executor=executor,
         monotonic_source=monotonic,
         now_provider=now_provider,
+        secondary_signal_provider=secondary_signals,
         telemetry_recorder=telemetry,
     )
 
@@ -271,14 +273,48 @@ async def test_sensitive_intents_require_secondary_signals() -> None:
             OPT_NIGHT_MODE_END_HOUR: 6,
             OPT_DEDUPLICATION_WINDOW: 2.0,
         },
+        secondary_signals=lambda: set(),
     )
-    handler._secondary_signal_provider = lambda: set()
 
     result = await handler.async_handle("unlock the front door")
 
     assert result.success is False
     assert "secondary" in result.response.lower()
     assert executor.calls == []
+
+
+async def test_sensitive_intents_execute_when_signals_present() -> None:
+    """Sensitive intents should execute when all required secondary signals exist."""
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front_door",
+        targets=["lock.front_door"],
+        params={},
+        confidence=0.91,
+        required_secondary_signals=["presence"],
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            OPT_ENABLE_CONFIDENCE_GATE: True,
+            OPT_CONFIDENCE_THRESHOLD: 0.6,
+            OPT_NIGHT_MODE_ENABLED: False,
+            OPT_NIGHT_MODE_START_HOUR: 23,
+            OPT_NIGHT_MODE_END_HOUR: 6,
+            OPT_DEDUPLICATION_WINDOW: 2.0,
+        },
+        secondary_signals=lambda: {"presence"},
+    )
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is True
+    assert "success" in result.response.lower()
+    assert len(executor.calls) == 1
 
 
 async def test_adapter_client_receives_shared_secret_from_options() -> None:
