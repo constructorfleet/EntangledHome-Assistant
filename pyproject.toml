@@ -37,4 +37,7 @@ dev = [
     "pytest>=6.2.2",
     "pytest-cov>=2.10.1",
     "pytest-homeassistant-custom-component>=0.2.1",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.25.0",
+    "pre-commit>=3.8.0",
 ]
