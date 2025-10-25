@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.entangledhome.intent_handlers import (
+    EXECUTORS,
+    IntentHandlingError,
     async_execute_intent,
     resolve_scene_entity_id,
 )
@@ -98,7 +100,12 @@ async def test_report_sensor_summarizes_by_area(fake_hass: SimpleNamespace) -> N
         confidence=0.94,
     )
 
-    await async_execute_intent(fake_hass, response, catalog=catalog)
+    await async_execute_intent(
+        fake_hass,
+        response,
+        catalog=catalog,
+        intent_config={"slots": ["targets", "area"]},
+    )
 
     fake_hass.services.async_call.assert_awaited_once_with(
         "conversation",
@@ -120,7 +127,12 @@ async def test_media_play_routes_to_media_player(fake_hass: SimpleNamespace) -> 
         confidence=0.81,
     )
 
-    await async_execute_intent(fake_hass, response, catalog=catalog)
+    await async_execute_intent(
+        fake_hass,
+        response,
+        catalog=catalog,
+        intent_config={"slots": ["media", "targets", "area"]},
+    )
 
     fake_hass.services.async_call.assert_awaited_once_with(
         "media_player",
@@ -143,7 +155,12 @@ async def test_media_pause_routes_to_media_player(fake_hass: SimpleNamespace) ->
         confidence=0.83,
     )
 
-    await async_execute_intent(fake_hass, response, catalog=catalog)
+    await async_execute_intent(
+        fake_hass,
+        response,
+        catalog=catalog,
+        intent_config={"slots": ["media", "targets", "area"]},
+    )
 
     fake_hass.services.async_call.assert_awaited_once_with(
         "media_player",
@@ -163,15 +180,22 @@ async def test_play_title_invokes_media_player_with_plex_metadata(fake_hass: Sim
         area=None,
         targets=["media_player.living_room_tv"],
         params={
-            "rating_key": "4242",
-            "server": "PlexServer",
+            "media_id": "4242",
+            "server_name": "PlexServer",
             "media_type": "movie",
             "shuffle": True,
         },
         confidence=0.9,
     )
 
-    await async_execute_intent(fake_hass, response, catalog=catalog)
+    await async_execute_intent(
+        fake_hass,
+        response,
+        catalog=catalog,
+        intent_config={
+            "slots": ["media_id", "server_name", "media_type", "shuffle", "targets"],
+        },
+    )
 
     fake_hass.services.async_call.assert_awaited_once_with(
         "media_player",
@@ -206,11 +230,16 @@ async def test_scene_activate_uses_fuzzy_resolution(fake_hass: SimpleNamespace) 
         intent="scene_activate",
         area=None,
         targets=None,
-        params={"scene": "cinema mode"},
+        params={"scene_name": "cinema mode"},
         confidence=0.92,
     )
 
-    await async_execute_intent(fake_hass, response, catalog=catalog)
+    await async_execute_intent(
+        fake_hass,
+        response,
+        catalog=catalog,
+        intent_config={"slots": ["scene_name"]},
+    )
 
     fake_hass.services.async_call.assert_awaited_once_with(
         "scene",
@@ -239,3 +268,69 @@ def test_resolve_scene_entity_id_matches_alias() -> None:
     assert (
         resolve_scene_entity_id("Wind-Down", catalog) == "scene.relax_evening"
     ), "Alias should resolve via fuzzy matching"
+
+
+def test_executor_registry_lists_supported_intents() -> None:
+    """Executor registry should expose handlers for known intents."""
+
+    expected = {
+        "set_light_color",
+        "turn_on",
+        "turn_off",
+        "set_brightness",
+        "scene_activate",
+        "report_sensor",
+        "media_play",
+        "media_pause",
+        "play_title",
+        "noop",
+    }
+
+    assert expected.issubset(EXECUTORS), "All expected intents must be registered"
+
+
+async def test_async_execute_intent_errors_for_unknown_intent(
+    fake_hass: SimpleNamespace,
+) -> None:
+    """Unknown intents should raise a descriptive error."""
+
+    catalog = _catalog_with_entities_and_scenes()
+    response = InterpretResponse(
+        intent="unsupported_intent",
+        area=None,
+        targets=None,
+        params={},
+        confidence=0.8,
+    )
+
+    with pytest.raises(IntentHandlingError) as excinfo:
+        await async_execute_intent(fake_hass, response, catalog=catalog)
+
+    assert (
+        str(excinfo.value) == "No executor registered for intent 'unsupported_intent'"
+    )
+
+
+async def test_async_execute_intent_errors_when_intent_disabled(
+    fake_hass: SimpleNamespace,
+) -> None:
+    """Passing a disabled flag in intent metadata should abort execution."""
+
+    catalog = _catalog_with_entities_and_scenes()
+    response = InterpretResponse(
+        intent="turn_on",
+        area="living_room",
+        targets=None,
+        params={},
+        confidence=0.9,
+    )
+
+    with pytest.raises(IntentHandlingError) as excinfo:
+        await async_execute_intent(
+            fake_hass,
+            response,
+            catalog=catalog,
+            intent_config={"disabled": True},
+        )
+
+    assert str(excinfo.value) == "Intent 'turn_on' is disabled"
