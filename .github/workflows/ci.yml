@@ -58,7 +58,7 @@ jobs:
 
       - name: Run pytest (Home Assistant)
         run: |
-          uv run pytest tests --cov=custom_components.entangledhome --cov=adapter_service --cov-report=xml:coverage-home-assistant.xml --cov-report=term
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest tests --cov=custom_components.entangledhome --cov=adapter_service --cov-report=xml:coverage-home-assistant.xml --cov-report=term
 
       - name: Upload coverage
         if: always()
