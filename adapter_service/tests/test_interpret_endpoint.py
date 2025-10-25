@@ -63,6 +63,43 @@ def _set_env(monkeypatch):
     monkeypatch.setenv("ADAPTER_SHARED_SECRET", SHARED_SECRET)
 
 
+@pytest.fixture
+def qdrant_payloads() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "ha_entities": [
+            {
+                "id": "entity::light.living_room_lamp",
+                "score": 0.91,
+                "payload": {
+                    "entity_id": "light.living_room_lamp",
+                    "friendly_name": "Living Room Lamp",
+                    "domain": "light",
+                    "area_id": "living_room",
+                    "aliases": ["corner lamp"],
+                    "capabilities": {"supports_color": True},
+                },
+            }
+        ],
+        "plex_media": [
+            {
+                "id": "plex::movie-night",
+                "score": 0.83,
+                "payload": {
+                    "rating_key": "movie-night",
+                    "title": "Movie Night",
+                    "type": "movie",
+                    "year": 2019,
+                    "collection": ["Favorites"],
+                    "genres": ["Family"],
+                    "actors": ["Sample Actor"],
+                    "audio_language": "en",
+                    "subtitles": ["en"],
+                },
+            }
+        ],
+    }
+
+
 def _post_with_signature(client: TestClient, payload: dict, secret: str):
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -73,7 +110,7 @@ def _post_with_signature(client: TestClient, payload: dict, secret: str):
     return client.post("/interpret", data=body, headers=headers)
 
 
-def test_interpret_endpoint_returns_valid_response(monkeypatch):
+def test_interpret_endpoint_returns_valid_response(monkeypatch, qdrant_payloads):
     import importlib
 
     from adapter_service.schema import InterpretRequest
@@ -83,7 +120,7 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch):
     importlib.reload(main)
 
     fake_embeddings = FakeEmbeddingService()
-    fake_qdrant = FakeQdrantClient({"ha_entities": [], "plex_media": []})
+    fake_qdrant = FakeQdrantClient(qdrant_payloads)
     fallback = InterpretResponse(
         intent="noop",
         params={"reason": "adapter unavailable"},
@@ -140,9 +177,11 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch):
     assert fake_model.calls
     _, prompt, _ = fake_model.calls[0]
     assert prompt.get("intents") == request_payload.intents
+    assert prompt["retrieved"]["ha_entities"][0]["payload"]["entity_id"] == "light.living_room_lamp"
+    assert prompt["retrieved"]["plex_media"][0]["payload"]["title"] == "Movie Night"
 
 
-def test_interpret_streaming_cache_and_metrics(monkeypatch):
+def test_interpret_streaming_cache_and_metrics(monkeypatch, qdrant_payloads):
     import importlib
 
     from adapter_service.schema import InterpretRequest
@@ -156,10 +195,11 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     importlib.reload(main)
 
     build_calls = []
+    original_builder = main._build_catalog_slice
 
     def fake_build_catalog_slice(catalog):
         build_calls.append(catalog)
-        return {"areas": [area.name for area in catalog.areas]}
+        return original_builder(catalog)
 
     monkeypatch.setattr(
         main,
@@ -169,28 +209,7 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     )
 
     fake_embeddings = FakeEmbeddingService()
-    fake_qdrant = FakeQdrantClient(
-        {
-            "ha_entities": [
-                {
-                    "payload": {
-                        "entity_id": "light.living_room_lamp",
-                        "friendly_name": "Living Room Lamp",
-                        "area_id": "living_room",
-                    }
-                }
-            ],
-            "plex_media": [
-                {
-                    "payload": {
-                        "rating_key": "movie-night",
-                        "title": "Movie Night",
-                        "type": "movie",
-                    }
-                }
-            ],
-        }
-    )
+    fake_qdrant = FakeQdrantClient(qdrant_payloads)
     fake_model = FakeModelClient(
         [
             InterpretResponse(
@@ -270,9 +289,12 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch):
     ]
     assert fake_model.calls[0][0] == "  Turn ON   the Living Room Lights  "
     prompt = fake_model.calls[0][1]
-    assert prompt["catalog"] == {"areas": ["Living Room"]}
-    assert prompt["retrieved"]["ha_entities"][0]["payload"]["friendly_name"] == "Living Room Lamp"
-    assert prompt["retrieved"]["plex_media"][0]["payload"]["title"] == "Movie Night"
+    area_summary = prompt["catalog"]["areas"][0]["summary"]
+    assert area_summary.startswith("Living Room (living_room)")
+    assert "aliases: lounge" in area_summary
+    assert prompt["catalog"]["entities"] == []
+    assert prompt["retrieved"]["ha_entities"][0]["summary"].startswith("Living Room Lamp")
+    assert prompt["retrieved"]["plex_media"][0]["summary"].startswith("Movie Night")
     assert fake_model.calls[0][2] == pytest.approx(0.8)
 
     assert len(build_calls) == 1

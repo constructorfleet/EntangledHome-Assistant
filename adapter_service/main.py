@@ -95,10 +95,15 @@ def _build_catalog_slice(catalog: CatalogPayload) -> dict:
     """Produce a lightweight catalog slice for the model prompt."""
 
     return {
-        "areas": [area.model_dump(exclude_none=True) for area in catalog.areas],
-        "entities": [entity.model_dump(exclude_none=True) for entity in catalog.entities],
-        "scenes": [scene.model_dump(exclude_none=True) for scene in catalog.scenes],
-        "plex_media": [item.model_dump(exclude_none=True) for item in catalog.plex_media],
+        "areas": [_filter_area(area.model_dump(exclude_none=True)) for area in catalog.areas],
+        "entities": [
+            _filter_entity(entity.model_dump(exclude_none=True)) for entity in catalog.entities
+        ],
+        "scenes": [_filter_scene(scene.model_dump(exclude_none=True)) for scene in catalog.scenes],
+        "plex_media": [
+            _filter_plex_item(item.model_dump(exclude_none=True))
+            for item in catalog.plex_media
+        ],
     }
 
 
@@ -118,6 +123,180 @@ def _fallback_response(utterance: str, *, reason: str) -> InterpretResponse:
         params={"reason": reason, "utterance": utterance},
         confidence=0.0,
     )
+
+
+_ENTITY_FIELDS: Final[tuple[str, ...]] = (
+    "entity_id",
+    "friendly_name",
+    "domain",
+    "area_id",
+    "device_id",
+    "aliases",
+    "capabilities",
+)
+_AREA_FIELDS: Final[tuple[str, ...]] = ("area_id", "name", "aliases")
+_SCENE_FIELDS: Final[tuple[str, ...]] = ("entity_id", "name", "aliases")
+_PLEX_FIELDS: Final[tuple[str, ...]] = (
+    "rating_key",
+    "title",
+    "type",
+    "year",
+    "collection",
+    "genres",
+    "actors",
+    "audio_language",
+    "subtitles",
+)
+
+
+def _filter_area(area: Mapping[str, Any]) -> dict[str, Any]:
+    filtered = {key: area.get(key) for key in _AREA_FIELDS if area.get(key) is not None}
+    aliases = area.get("aliases")
+    if isinstance(aliases, Sequence) and not isinstance(aliases, (str, bytes)):
+        filtered["aliases"] = [str(alias) for alias in aliases if str(alias)]
+    filtered.setdefault("aliases", [])
+    filtered["summary"] = _summarize_area(filtered)
+    return filtered
+
+
+def _filter_scene(scene: Mapping[str, Any]) -> dict[str, Any]:
+    filtered = {key: scene.get(key) for key in _SCENE_FIELDS if scene.get(key) is not None}
+    aliases = scene.get("aliases")
+    if isinstance(aliases, Sequence) and not isinstance(aliases, (str, bytes)):
+        filtered["aliases"] = [str(alias) for alias in aliases if str(alias)]
+    filtered.setdefault("aliases", [])
+    filtered["summary"] = _summarize_scene(filtered)
+    return filtered
+
+
+def _filter_entity(entity: Mapping[str, Any]) -> dict[str, Any]:
+    filtered: dict[str, Any] = {}
+    for key in _ENTITY_FIELDS:
+        value = entity.get(key)
+        if value is None:
+            continue
+        if key == "aliases":
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                filtered[key] = [str(alias) for alias in value if str(alias)]
+            continue
+        if key == "capabilities":
+            if isinstance(value, Mapping):
+                filtered[key] = dict(value)
+            continue
+        filtered[key] = str(value)
+    filtered.setdefault("aliases", [])
+    filtered.setdefault("capabilities", {})
+    filtered["summary"] = _summarize_entity(filtered)
+    return filtered
+
+
+def _filter_plex_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    filtered: dict[str, Any] = {}
+    for key in _PLEX_FIELDS:
+        value = item.get(key)
+        if value is None:
+            continue
+        if key in {"collection", "genres", "actors", "subtitles"}:
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                filtered[key] = [str(entry) for entry in value if str(entry)]
+            continue
+        if key == "year":
+            try:
+                filtered[key] = int(value)
+            except (TypeError, ValueError):
+                continue
+            continue
+        filtered[key] = str(value)
+    for field in ("collection", "genres", "actors", "subtitles"):
+        filtered.setdefault(field, [])
+    filtered["summary"] = _summarize_plex(filtered)
+    return filtered
+
+
+def _summarize_area(area: Mapping[str, Any]) -> str:
+    name = str(area.get("name") or area.get("area_id") or "Area")
+    area_id = area.get("area_id")
+    parts = [name]
+    if area_id and str(area_id) != name:
+        parts.append(f"({area_id})")
+    summary = " ".join(parts).strip()
+    aliases = area.get("aliases") or []
+    if aliases:
+        summary = f"{summary} • aliases: {', '.join(str(alias) for alias in aliases)}"
+    return summary
+
+
+def _summarize_scene(scene: Mapping[str, Any]) -> str:
+    name = str(scene.get("name") or scene.get("entity_id") or "Scene")
+    entity_id = scene.get("entity_id")
+    parts = [name]
+    if entity_id and str(entity_id) != name:
+        parts.append(f"({entity_id})")
+    summary = " ".join(parts).strip()
+    aliases = scene.get("aliases") or []
+    if aliases:
+        summary = f"{summary} • aliases: {', '.join(str(alias) for alias in aliases)}"
+    return summary
+
+
+def _summarize_entity(entity: Mapping[str, Any]) -> str:
+    name = str(entity.get("friendly_name") or entity.get("entity_id") or "Entity")
+    domain = entity.get("domain")
+    area = entity.get("area_id")
+    aliases = entity.get("aliases") or []
+    parts = [name]
+    if domain:
+        parts.append(f"domain:{domain}")
+    if area:
+        parts.append(f"area:{area}")
+    if aliases:
+        parts.append(f"aliases: {', '.join(str(alias) for alias in aliases)}")
+    return " | ".join(parts)
+
+
+def _summarize_plex(item: Mapping[str, Any]) -> str:
+    title = str(item.get("title") or item.get("rating_key") or "Item")
+    media_type = item.get("type")
+    year = item.get("year")
+    parts = [title]
+    if media_type:
+        parts.append(str(media_type))
+    if year:
+        parts.append(str(year))
+    collections = item.get("collection") or []
+    if collections:
+        parts.append(f"collections: {', '.join(str(name) for name in collections)}")
+    genres = item.get("genres") or []
+    if genres:
+        parts.append(f"genres: {', '.join(str(genre) for genre in genres)}")
+    return " | ".join(parts)
+
+
+def _normalize_retrieved(collection: str, items: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        payload_obj = item.get("payload")
+        if not isinstance(payload_obj, Mapping):
+            continue
+        if collection == "ha_entities":
+            filtered = _filter_entity(payload_obj)
+        elif collection == "plex_media":
+            filtered = _filter_plex_item(payload_obj)
+        else:
+            continue
+        payload = dict(filtered)
+        summary = str(payload.pop("summary", ""))
+        normalized.append(
+            {
+                "id": item.get("id"),
+                "score": float(item.get("score", 0.0)),
+                "payload": payload,
+                "summary": summary,
+            }
+        )
+    return normalized
 
 
 class CatalogSliceCache:
@@ -296,7 +475,7 @@ class StreamingModel:
         for collection, result in zip(("ha_entities", "plex_media"), results):
             if isinstance(result, Exception):
                 continue
-            payload[collection] = result
+            payload[collection] = _normalize_retrieved(collection, result)
         return payload
 
 
