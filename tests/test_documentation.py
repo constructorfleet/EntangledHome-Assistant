@@ -26,6 +26,32 @@ def _assert_contains(text: str, markers: list[str]) -> None:
         assert marker in text
 
 
+def _ensure_httpx_stub() -> None:
+    if "httpx" in sys.modules:
+        return
+
+    class _HttpxAsyncClient:  # pragma: no cover - stub methods unused in test
+        def __init__(self, *args, **kwargs) -> None:
+            self._closed = False
+
+        async def post(self, *args, **kwargs):  # pragma: no cover - defensive stub
+            raise RuntimeError("httpx.AsyncClient.post should not be called in this test")
+
+        async def aclose(self) -> None:
+            self._closed = True
+
+    class _Timeout:  # pragma: no cover - minimal stub
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+    httpx_stub = ModuleType("httpx")
+    httpx_stub.AsyncClient = _HttpxAsyncClient
+    httpx_stub.Timeout = _Timeout
+    httpx_stub.HTTPError = Exception
+    sys.modules["httpx"] = httpx_stub
+
+
 def test_readme_and_adapter_docs_cover_required_sections() -> None:
     readme = _read_text(REPO_ROOT / "README.md")
     _assert_contains(
@@ -121,27 +147,47 @@ def test_readme_documents_configurable_intents_and_guardrails() -> None:
         _assert_contains(_read_text(path), markers)
 
 
+def test_release_notes_anchor_latest_version_history() -> None:
+    readme = _read_text(REPO_ROOT / "README.md")
+    _assert_contains(
+        readme,
+        [
+            "## Version history",
+            "### v0.5.0",
+            "docs/releases/v0.5.0.md",
+        ],
+    )
+
+    release_notes_path = REPO_ROOT / "docs" / "releases" / "v0.5.0.md"
+    assert release_notes_path.exists()
+    release_notes = _read_text(release_notes_path)
+    _assert_contains(
+        release_notes,
+        [
+            "# v0.5.0",
+            "Guardrails",
+            "Intent configuration",
+            "Adapter",
+            "Qdrant",
+        ],
+    )
+
+    migration_notes = _read_text(REPO_ROOT / "docs" / "migration.md")
+    _assert_contains(
+        migration_notes,
+        [
+            "[v0.5.0]",
+            "docs/releases/v0.5.0.md",
+        ],
+    )
+
+
 def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     """Custom sentence templates should override packaged defaults after reload."""
 
     DOMAIN = "entangledhome"
 
-    class _HttpxAsyncClient:  # pragma: no cover - stub methods unused in test
-        def __init__(self, *args, **kwargs) -> None:
-            self._closed = False
-
-        async def post(self, *args, **kwargs):  # pragma: no cover - defensive stub
-            raise RuntimeError("httpx.AsyncClient.post should not be called in this test")
-
-        async def aclose(self) -> None:
-            self._closed = True
-
-    if "httpx" not in sys.modules:
-        httpx_stub = ModuleType("httpx")
-        httpx_stub.AsyncClient = _HttpxAsyncClient
-        httpx_stub.Timeout = object
-        httpx_stub.HTTPError = Exception
-        sys.modules["httpx"] = httpx_stub
+    _ensure_httpx_stub()
 
     import custom_components.entangledhome as integration
 

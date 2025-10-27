@@ -247,3 +247,17 @@ If the integration fails to load or the adapter returns errors, start with
 - Adapter connectivity debugging with `uv run scripts/ingest_entities.py --dry-run` and
   HTTP tracing.
 - Qdrant ingestion problems, including schema mismatch and rejected payloads.
+
+## Version history
+
+### v0.5.0
+- **Guardrails** – Secondary signal defaults now live in the options flow so dangerous intents
+  inherit the tighter confirmation paths without manual YAML edits.
+- **Intent configuration** – The adapter receives an `intents` payload with every utterance,
+  aligning YAML snippets, UI configuration, and the FastAPI contract.
+- **Adapter** – Request/response validation tightened alongside signature configuration guidance to
+  keep the prompt-adapter handshake secure.
+- **Qdrant** – Updated ingestion scripts populate richer payload metadata for both
+  `ha_entities` and `plex_media` collections, improving retrieval context.
+
+Full release notes: [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md)

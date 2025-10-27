@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: entangledhome-assistant
+Version: 0.5.0
+Summary: Home Assistant custom component placeholder project
+License: BSL-1.1
+Requires-Python: >=3.13
+Requires-Dist: homeassistant>=2025.4.4
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: pydantic>=2.12.3
+Requires-Dist: jsonschema>=4.23.0
+Provides-Extra: dev
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: pytest-homeassistant-custom-component; extra == "dev"
+Requires-Dist: fastapi; extra == "dev"
+Requires-Dist: uvicorn[standard]; extra == "dev"
+Requires-Dist: httpx; extra == "dev"
