@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="entangleGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a1fb8" />
+      <stop offset="100%" stop-color="#0fd3ff" />
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#entangleGradient)" />
+  <path d="M40 64c0-13.255 10.745-24 24-24s24 10.745 24 24-10.745 24-24 24" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" />
+  <path d="M32 48c0 0 8 16 32 16s32 16 32 16" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.8" />
+  <circle cx="40" cy="48" r="6" fill="#ffffff" opacity="0.9" />
+  <circle cx="88" cy="80" r="6" fill="#ffffff" opacity="0.9" />
+</svg>

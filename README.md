@@ -23,6 +23,26 @@ flowchart LR
 3. Home Assistant checks guardrails (secondary signals, confidence thresholds) before routing
    the action to the relevant domain service call.
 
+## Installation (HACS)
+
+1. In Home Assistant, open **HACS → Integrations**, then select the overflow menu (**⋯**) and
+   choose **Custom repositories**.
+2. Paste the repository URL and set the category to **Integration** so HACS indexes the metadata
+   published in `hacs.json`.
+3. Search for **EntangledHome - Assistant** under HACS Integrations and click **Download** to
+   install the integration.
+4. Restart Home Assistant once HACS finishes copying files into `custom_components/entangledhome/`.
+
+Troubleshooting tips:
+
+- If the repository does not appear, confirm the URL is correct and the category is set to
+  Integration before saving it in HACS.
+- After installation, verify that `custom_components/entangledhome/icon.svg` and
+  `custom_components/entangledhome/logo.png` exist. Reinstall the integration from HACS if assets
+  are missing, as HACS caches downloads per version tag.
+- Should HACS report validation warnings, rerun `python3 -m script.hassfest` locally to spot
+  manifest or metadata issues before retrying the installation.
+
 ## Setup
 
 ### Home Assistant Configuration
