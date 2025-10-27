@@ -1,7 +1,7 @@
 {
   "domain": "entangledhome",
   "name": "EntangledHome - Assistant",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "documentation": "https://github.com/ConstructorFleet/EntangledHome-Assistant",
   "integration_type": "helper",
   "config_flow": true,

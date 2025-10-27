@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "entangledhome-assistant"
-version = "0.1.0"
+version = "0.5.0"
 description = "Home Assistant custom component placeholder project"
 requires-python = ">=3.13"
 license = { text = "BSL-1.1" }

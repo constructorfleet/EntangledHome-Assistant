@@ -5,6 +5,9 @@ or the adapter microservice.
 
 ## v0.5.0
 
+See [v0.5.0](docs/releases/v0.5.0.md) release notes for guardrail, intent configuration, adapter,
+and Qdrant highlights.
+
 ### Breaking changes
 - Guardrail defaults moved from YAML-only configuration to the options flow. Review the
   **Dangerous intents** and **Intent thresholds** fields after upgrading.
