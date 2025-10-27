@@ -37,7 +37,6 @@ jobs:
 
   home-assistant-tests:
     runs-on: ubuntu-latest
-    needs: lint
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +72,6 @@ jobs:
 
   adapter-service-tests:
     runs-on: ubuntu-latest
-    needs: lint
     steps:
       - uses: actions/checkout@v4
 
