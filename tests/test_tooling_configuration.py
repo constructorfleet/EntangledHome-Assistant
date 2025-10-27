@@ -100,9 +100,9 @@ def test_troubleshooting_documents_hassfest_validation() -> None:
     """Troubleshooting guide should point contributors to hassfest validation."""
 
     troubleshooting_text = TROUBLESHOOTING_DOC.read_text()
-    assert (
-        HASSFEST_COMMAND in troubleshooting_text
-    ), "Troubleshooting guide must include hassfest command"
+    assert HASSFEST_COMMAND in troubleshooting_text, (
+        "Troubleshooting guide must include hassfest command"
+    )
 
 
 def test_branding_assets_exist_for_hacs() -> None:
