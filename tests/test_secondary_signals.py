@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+
 DOMAIN = "entangledhome"
 
 
@@ -15,15 +19,17 @@ class _DummyStates:
         return self._states.get(entity_id)
 
 
-def _make_entry(options: dict[str, object]) -> SimpleNamespace:
-    return SimpleNamespace(entry_id="entry-id", options=options)
+def _make_entry(options: dict[str, object]) -> ConfigEntry:
+    entry = ConfigEntry(entry_id="entry-id", options=dict(options))
+    entry.data = {}  # type: ignore[attr-defined]
+    return entry
 
 
-def _make_hass(states: dict[str, SimpleNamespace] | None = None) -> SimpleNamespace:
-    return SimpleNamespace(
-        states=_DummyStates(states or {}),
-        data={DOMAIN: {"entry-id": {}}},
-    )
+def _make_hass(states: dict[str, SimpleNamespace] | None = None) -> HomeAssistant:
+    hass = HomeAssistant()
+    hass.states = _DummyStates(states or {})  # type: ignore[attr-defined]
+    hass.data[DOMAIN] = {"entry-id": {}}
+    return hass
 
 
 def test_presence_signal_included_when_any_person_home() -> None:

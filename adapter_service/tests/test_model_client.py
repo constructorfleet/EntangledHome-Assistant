@@ -26,8 +26,8 @@ def test_model_client_repairs_json_and_clamps_confidence(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     chunks = [
-        "data: {\"intent\": \"noop\", \"confidence\": 0.2, \"params\": {}}\n\n",
-        "data: {\"intent\": \"lights_on\", \"confidence\": 1.4, \"area\": \"living_room\", \"params\": {}}\n\n",
+        'data: {"intent": "noop", "confidence": 0.2, "params": {}}\n\n',
+        'data: {"intent": "lights_on", "confidence": 1.4, "area": "living_room", "params": {}}\n\n',
         "data: [DONE]\n\n",
     ]
     requester = FakeRequester(chunks)

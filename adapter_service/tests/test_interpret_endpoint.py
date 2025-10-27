@@ -182,9 +182,7 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch, qdrant_payloads)
         },
     )
 
-    response = _post_with_signature(
-        client, request_payload.model_dump(mode="json"), SHARED_SECRET
-    )
+    response = _post_with_signature(client, request_payload.model_dump(mode="json"), SHARED_SECRET)
 
     assert response.status_code == 200
 
@@ -339,9 +337,7 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch, qdrant_payloads):
             utterance=utterance,
             catalog=request_payload.catalog,
         )
-        result = _post_with_signature(
-            client, extra_payload.model_dump(mode="json"), SHARED_SECRET
-        )
+        result = _post_with_signature(client, extra_payload.model_dump(mode="json"), SHARED_SECRET)
         assert result.status_code == 200
         assert len(build_calls) == baseline_calls + idx
 
@@ -439,6 +435,7 @@ def test_interpret_cache_key_includes_catalog_fingerprint(monkeypatch):
     assert second_response.status_code == 200
     assert len(build_calls) == 2
 
+
 def test_interpret_endpoint_rejects_invalid_signature():
     from adapter_service.main import app
     from adapter_service.schema import InterpretRequest
@@ -527,9 +524,7 @@ def test_interpret_endpoint_repairs_invalid_model_output(monkeypatch, qdrant_pay
         },
     )
 
-    response = _post_with_signature(
-        client, request_payload.model_dump(mode="json"), SHARED_SECRET
-    )
+    response = _post_with_signature(client, request_payload.model_dump(mode="json"), SHARED_SECRET)
 
     assert response.status_code == 200
     body = InterpretResponse.model_validate(response.json())

@@ -138,9 +138,7 @@ class CatalogExporter:
                 continue
             break
 
-    def _log_metrics(
-        self, payload: CatalogPayload, retry_counts: dict[str, int]
-    ) -> None:
+    def _log_metrics(self, payload: CatalogPayload, retry_counts: dict[str, int]) -> None:
         """Emit a metrics event summarizing the export."""
 
         counts = {
@@ -161,7 +159,7 @@ class CatalogExporter:
 
 
 async def _resolve_source(
-    source: Callable[[], Iterable[Mapping[str, Any]] | Awaitable[Iterable[Mapping[str, Any]]]]
+    source: Callable[[], Iterable[Mapping[str, Any]] | Awaitable[Iterable[Mapping[str, Any]]]],
 ) -> Sequence[Mapping[str, Any]]:
     """Resolve a data source that may be synchronous or awaitable."""
 

@@ -37,4 +37,15 @@ dev = [
     "pytest>=6.2.2",
     "pytest-cov>=2.10.1",
     "pytest-homeassistant-custom-component>=0.2.1",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.25.0",
 ]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"

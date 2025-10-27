@@ -41,13 +41,16 @@ class Settings:
     shared_secret: str | None
 
 
-def _parse_float(value: str | None, default: float) -> float:
+def _parse_float(value: str | None, default: float, *, minimum: float | None = None) -> float:
     if value is None:
         return default
     try:
-        return float(value)
+        parsed = float(value)
     except ValueError:
         return default
+    if minimum is not None and parsed <= minimum:
+        return default
+    return parsed
 
 
 def _parse_int(value: str | None, default: int) -> int:
@@ -60,6 +63,10 @@ def _parse_int(value: str | None, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
+def _parse_timeout(value: str | None, default: float) -> float:
+    return _parse_float(value, default, minimum=0.0)
+
+
 def _load_settings() -> Settings:
     """Load adapter configuration from environment variables."""
 
@@ -68,9 +75,9 @@ def _load_settings() -> Settings:
         qdrant_host=os.getenv("QDRANT_HOST"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY"),
         confidence_threshold=_parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.75),
-        model_timeout_s=_parse_float(os.getenv("MODEL_TIMEOUT_S"), 1.5),
-        qdrant_timeout_s=_parse_float(os.getenv("QDRANT_TIMEOUT_S"), 0.4),
-        adapter_timeout_s=_parse_float(os.getenv("ADAPTER_TIMEOUT_S"), 2.0),
+        model_timeout_s=_parse_timeout(os.getenv("MODEL_TIMEOUT_S"), 1.5),
+        qdrant_timeout_s=_parse_timeout(os.getenv("QDRANT_TIMEOUT_S"), 0.4),
+        adapter_timeout_s=_parse_timeout(os.getenv("ADAPTER_TIMEOUT_S"), 2.0),
         catalog_cache_size=_parse_int(os.getenv("CATALOG_CACHE_SIZE"), 256),
         shared_secret=os.getenv("ADAPTER_SHARED_SECRET"),
     )
@@ -105,8 +112,7 @@ def _build_catalog_slice(catalog: CatalogPayload) -> dict:
         ],
         "scenes": [_filter_scene(scene.model_dump(exclude_none=True)) for scene in catalog.scenes],
         "plex_media": [
-            _filter_plex_item(item.model_dump(exclude_none=True))
-            for item in catalog.plex_media
+            _filter_plex_item(item.model_dump(exclude_none=True)) for item in catalog.plex_media
         ],
     }
 
@@ -300,7 +306,9 @@ def _summarize_plex(item: Mapping[str, Any]) -> str:
     return " | ".join(parts)
 
 
-def _normalize_retrieved(collection: str, items: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _normalize_retrieved(
+    collection: str, items: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, Mapping):
@@ -512,9 +520,7 @@ class StreamingModel:
                 raw,
             )
             if allow_repair:
-                return await self._attempt_repair(
-                    utterance=utterance, prompt=prompt, raw=raw
-                )
+                return await self._attempt_repair(utterance=utterance, prompt=prompt, raw=raw)
             return None
 
         try:
@@ -526,9 +532,7 @@ class StreamingModel:
                 data,
             )
             if allow_repair:
-                return await self._attempt_repair(
-                    utterance=utterance, prompt=prompt, raw=data
-                )
+                return await self._attempt_repair(utterance=utterance, prompt=prompt, raw=data)
             return None
 
         try:
@@ -540,9 +544,7 @@ class StreamingModel:
                 data,
             )
             if allow_repair:
-                return await self._attempt_repair(
-                    utterance=utterance, prompt=prompt, raw=data
-                )
+                return await self._attempt_repair(utterance=utterance, prompt=prompt, raw=data)
             return None
 
     async def _attempt_repair(
@@ -684,9 +686,7 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
 
     prompt_snapshot = _MODEL_STREAMER.describe_last_prompt() or {}
     retrieved_map = (
-        prompt_snapshot.get("retrieved", {})
-        if isinstance(prompt_snapshot, Mapping)
-        else {}
+        prompt_snapshot.get("retrieved", {}) if isinstance(prompt_snapshot, Mapping) else {}
     )
     retrieved_ids = _extract_retrieved_ids(retrieved_map)
     chunk_payloads = [chunk.model_dump(mode="json") for chunk in chunks]
@@ -711,11 +711,7 @@ def _enforce_signature(body: bytes, provided: str | None) -> None:
     if not secret:
         return
     if not provided:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing signature")
     expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(provided, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")

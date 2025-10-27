@@ -212,18 +212,21 @@ async def _run() -> None:
 
     embed_service = EmbeddingService(model=args.embedding_model)
 
-    async with PlexCatalogClient(
-        args.plex_url,
-        args.plex_token,
-        timeout=args.timeout,
-        library_key=args.library,
-    ) as plex_client, QdrantHttpClient(
-        args.qdrant_url,
-        api_key=args.qdrant_key,
-        timeout=args.timeout,
-        batch_size=args.qdrant_batch,
-        max_retries=args.qdrant_retries,
-    ) as qdrant:
+    async with (
+        PlexCatalogClient(
+            args.plex_url,
+            args.plex_token,
+            timeout=args.timeout,
+            library_key=args.library,
+        ) as plex_client,
+        QdrantHttpClient(
+            args.qdrant_url,
+            api_key=args.qdrant_key,
+            timeout=args.timeout,
+            batch_size=args.qdrant_batch,
+            max_retries=args.qdrant_retries,
+        ) as qdrant,
+    ):
         payload = await ingest_plex(
             plex_client,
             embed_texts=embed_service.embed,

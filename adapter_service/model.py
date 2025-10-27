@@ -97,9 +97,7 @@ class ModelClient:
             ],
         }
 
-    async def _collect(
-        self, payload: dict[str, Any]
-    ) -> AsyncIterator[InterpretResponse | None]:
+    async def _collect(self, payload: dict[str, Any]) -> AsyncIterator[InterpretResponse | None]:
         buffer = ""
         async for chunk in self._request(payload):
             buffer += chunk

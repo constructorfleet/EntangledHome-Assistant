@@ -33,6 +33,7 @@ from .const import (
     OPT_INTENT_THRESHOLDS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
 )
+
 if TYPE_CHECKING:
     from .adapter_client import AdapterClient
     from .coordinator import EntangledHomeCoordinator
@@ -151,7 +152,9 @@ def _load_sentence_templates(
             try:
                 templates[stem] = resource.read_text(encoding="utf-8")
             except OSError:
-                _LOGGER.debug("Failed to read packaged sentence template %s", resource, exc_info=True)
+                _LOGGER.debug(
+                    "Failed to read packaged sentence template %s", resource, exc_info=True
+                )
 
     config = getattr(hass, "config", None)
     if config and hasattr(config, "path"):
@@ -163,9 +166,7 @@ def _load_sentence_templates(
                 try:
                     templates[override.stem] = override.read_text(encoding="utf-8")
                 except OSError:
-                    _LOGGER.debug(
-                        "Failed to read sentence override %s", override, exc_info=True
-                    )
+                    _LOGGER.debug("Failed to read sentence override %s", override, exc_info=True)
 
     return templates
 
@@ -388,9 +389,7 @@ def _build_embedder(entry: ConfigEntry) -> Callable[[list[str]], Awaitable[list[
     fallback_backend = None
     if _allow_fallback_embeddings(options) and not os.getenv("OPENAI_API_KEY"):
         fallback_backend = _DeterministicEmbeddingBackend()
-        _LOGGER.info(
-            "OPENAI_API_KEY missing; using deterministic embedding fallback backend"
-        )
+        _LOGGER.info("OPENAI_API_KEY missing; using deterministic embedding fallback backend")
 
     service = EmbeddingService(model=model, cache_size=cache_size, backend=fallback_backend)
 
@@ -414,7 +413,9 @@ def _build_embedder(entry: ConfigEntry) -> Callable[[list[str]], Awaitable[list[
     return _embed
 
 
-def _build_qdrant_upsert(entry: ConfigEntry) -> Callable[[str, list[dict[str, Any]]], Awaitable[None]]:
+def _build_qdrant_upsert(
+    entry: ConfigEntry,
+) -> Callable[[str, list[dict[str, Any]]], Awaitable[None]]:
     from .const import CONF_QDRANT_API_KEY, CONF_QDRANT_HOST
 
     data = getattr(entry, "data", {}) or {}
@@ -526,9 +527,7 @@ def _is_zero_vector(vector: Sequence[float]) -> bool:
     return all(float(component) == 0.0 for component in vector)
 
 
-def _option_or_env(
-    options: Mapping[str, Any], option_key: str, env_name: str, default: Any
-) -> Any:
+def _option_or_env(options: Mapping[str, Any], option_key: str, env_name: str, default: Any) -> Any:
     value = options.get(option_key)
     if value not in (None, ""):
         return value
@@ -539,13 +538,14 @@ def _option_or_env(
 
 
 class _DeterministicEmbeddingBackend:
-    async def generate(self, model: str, texts: list[str]) -> list[list[float]]:  # pragma: no cover - deterministic fallback
+    async def generate(
+        self, model: str, texts: list[str]
+    ) -> list[list[float]]:  # pragma: no cover - deterministic fallback
         vectors: list[list[float]] = []
         for text in texts:
             digest = hashlib.sha256(text.encode("utf-8")).digest()
             vector = [
-                int.from_bytes(digest[offset : offset + 4], "big") / 2**32
-                for offset in (0, 4, 8)
+                int.from_bytes(digest[offset : offset + 4], "big") / 2**32 for offset in (0, 4, 8)
             ]
             vectors.append(vector)
         return vectors

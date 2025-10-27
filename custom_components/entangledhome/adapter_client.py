@@ -148,9 +148,7 @@ class AdapterClient:
     def _build_signature(self, body: bytes) -> str | None:
         if not self._shared_secret:
             return None
-        digest = hmac.new(
-            self._shared_secret.encode("utf-8"), body, hashlib.sha256
-        ).hexdigest()
+        digest = hmac.new(self._shared_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
         return digest
 
     @staticmethod

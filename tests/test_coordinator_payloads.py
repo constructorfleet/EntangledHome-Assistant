@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+
 def test_build_catalog_payload_includes_metadata() -> None:
     """Coordinator should include friendly names, aliases, capabilities, and Plex metadata."""
 

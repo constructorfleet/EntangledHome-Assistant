@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import asyncio
-from types import SimpleNamespace
+from types import ModuleType
 
 import pytest
 
+from homeassistant.config_entries import ConfigEntry
 
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("monkeypatch")
-def test_build_embedder_uses_embedding_service(monkeypatch) -> None:
+async def test_build_embedder_uses_embedding_service(monkeypatch) -> None:
     """Embedder wrapper should delegate to EmbeddingService and return vectors."""
 
     import custom_components.entangledhome as integration
@@ -31,10 +33,11 @@ def test_build_embedder_uses_embedding_service(monkeypatch) -> None:
         FakeEmbeddingService,
     )
 
-    entry = SimpleNamespace(data={}, options={})
+    entry = ConfigEntry(entry_id="embed-entry", options={})
+    entry.data = {}
 
     embed_texts = integration._build_embedder(entry)
-    result = asyncio.run(embed_texts(["hello world"]))
+    result = await embed_texts(["hello world"])
 
     assert created["model"] == "custom-model"
     assert created["cache_size"] == 256
@@ -43,8 +46,9 @@ def test_build_embedder_uses_embedding_service(monkeypatch) -> None:
     assert result == [[0.1, 0.2, 0.3]]
 
 
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("monkeypatch")
-def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
+async def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
     """Qdrant upsert helper should post batches to the configured endpoint."""
 
     import custom_components.entangledhome as integration
@@ -58,7 +62,9 @@ def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
 
     class FakeClient:
         def __init__(self, *, base_url: str, headers: dict[str, str], timeout: float) -> None:
-            requests.append(("__init__", {"base_url": base_url, "headers": headers, "timeout": timeout}))
+            requests.append(
+                ("__init__", {"base_url": base_url, "headers": headers, "timeout": timeout})
+            )
 
         async def __aenter__(self) -> FakeClient:
             return self
@@ -74,12 +80,13 @@ def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
             requests.append(("close", {}))
 
     monkeypatch.setenv("QDRANT_MAX_RETRIES", "1")
-    monkeypatch.setattr(integration, "httpx", SimpleNamespace(AsyncClient=FakeClient, HTTPError=Exception))
+    httpx_stub = ModuleType("httpx")
+    httpx_stub.AsyncClient = FakeClient
+    httpx_stub.HTTPError = Exception
+    monkeypatch.setattr(integration, "httpx", httpx_stub)
 
-    entry = SimpleNamespace(
-        data={CONF_QDRANT_HOST: "https://qdrant.example", CONF_QDRANT_API_KEY: "token"},
-        options={},
-    )
+    entry = ConfigEntry(entry_id="qdrant-entry", options={})
+    entry.data = {CONF_QDRANT_HOST: "https://qdrant.example", CONF_QDRANT_API_KEY: "token"}
 
     upsert = integration._build_qdrant_upsert(entry)
 
@@ -88,7 +95,7 @@ def test_build_qdrant_upsert_posts_batches(monkeypatch, caplog) -> None:
         {"id": 2, "vector": [0.6, 0.7], "payload": {"name": "two"}},
     ]
 
-    asyncio.run(upsert("ha_entities", points))
+    await upsert("ha_entities", points)
 
     assert requests[0] == (
         "__init__",
