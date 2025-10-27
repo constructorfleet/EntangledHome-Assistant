@@ -60,7 +60,8 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           PYTEST_ADDOPTS: "--assert=plain"
         run: |
-          uv run python -m pytest tests \
+          uv run python -m pytest -p pytest_cov \
+            tests \
             --cov=custom_components.entangledhome \
             --cov-report=term \
             --cov-report=xml:coverage-home-assistant.xml
@@ -98,7 +99,8 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           PYTEST_ADDOPTS: "--assert=plain"
         run: |
-          uv run python -m pytest adapter_service/tests \
+          uv run python -m pytest -p pytest_cov \
+            adapter_service/tests \
             --cov=adapter_service \
             --cov-report=term \
             --cov-report=xml:coverage-adapter-service.xml

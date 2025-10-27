@@ -5,11 +5,17 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+import pytest
 import yaml
 
 
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
 WORKFLOW_CONTENT = WORKFLOW.read_text()
+
+PYTEST_JOBS = (
+    ("home-assistant-tests", "Run pytest (Home Assistant)", "tests"),
+    ("adapter-service-tests", "Run pytest (Adapter)", "adapter_service/tests"),
+)
 
 
 @lru_cache(maxsize=1)
@@ -37,11 +43,15 @@ def test_ci_workflow_includes_lint_and_coverage_upload() -> None:
     assert "codecov/codecov-action" in WORKFLOW_CONTENT, "Expected coverage upload step"
 
 
-def test_ci_workflow_runs_targeted_pytest_suites() -> None:
-    """CI should run adapter_service and Home Assistant pytest suites explicitly."""
+@pytest.mark.parametrize(("job_id", "step_name", "expected_path"), PYTEST_JOBS)
+def test_ci_workflow_runs_targeted_pytest_suites(
+    job_id: str, step_name: str, expected_path: str
+) -> None:
+    """CI should invoke pytest for each targeted suite explicitly."""
 
-    assert "pytest tests" in WORKFLOW_CONTENT, "Home Assistant tests should run"
-    assert "pytest adapter_service/tests" in WORKFLOW_CONTENT, "Adapter service tests should run"
+    run_command = extract_run_step(job_id, step_name)
+    assert "python -m pytest" in run_command
+    assert expected_path in run_command
 
 
 def test_home_assistant_suite_generates_dedicated_coverage_xml() -> None:
@@ -58,3 +68,11 @@ def test_adapter_suite_generates_dedicated_coverage_xml() -> None:
     run_command = extract_run_step("adapter-service-tests", "Run pytest (Adapter)")
     assert "--cov=adapter_service" in run_command
     assert "--cov-report=xml:coverage-adapter-service.xml" in run_command
+
+
+@pytest.mark.parametrize(("job_id", "step_name"), ((job, step) for job, step, _ in PYTEST_JOBS))
+def test_pytest_cov_plugin_loaded_when_autoload_disabled(job_id: str, step_name: str) -> None:
+    """Each pytest job must load pytest-cov explicitly when autoloading is disabled."""
+
+    run_command = extract_run_step(job_id, step_name)
+    assert "-p pytest_cov" in run_command
