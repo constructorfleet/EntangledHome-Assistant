@@ -16,6 +16,13 @@ service, and Qdrant pipeline.
   `tests/stubs/catalog.json` to ensure the adapter responds within the expected timeout.
 - Enable HTTP logging on the adapter to capture signature validation failures.
 
+## Validation and metadata
+- Run `python3 -m script.hassfest` to validate manifests, icons, and translations before
+  publishing updates. Execute the command from a Home Assistant Core checkout (e.g., add the core
+  repository to `PYTHONPATH`) so it can import dependencies. The tool streams `Validating ... done`
+  lines for each plugin; install any missing modules it reports (for example, `habluetooth`) and
+  rerun until the validation completes without errors.
+
 ## Qdrant ingestion
 - **Rejected payloads** &ndash; Compare the payload schema to the definitions in `adapter_service/README.md`.
   Qdrant errors will include the offending field name.
