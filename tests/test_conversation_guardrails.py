@@ -32,7 +32,6 @@ if "httpx" not in sys.modules:  # pragma: no cover - executed in test environmen
     sys.modules["httpx"] = httpx_stub
 
 if "jsonschema" not in sys.modules:  # pragma: no cover - executed in test environment
-
     jsonschema_stub = ModuleType("jsonschema")
     jsonschema_stub.ValidationError = Exception
 
@@ -59,6 +58,8 @@ from homeassistant.core import HomeAssistant
 
 
 pytestmark = pytest.mark.asyncio
+
+
 class DummyAdapter:
     """Adapter stub that yields predefined responses."""
 
@@ -558,7 +559,9 @@ async def test_guardrail_blocks_dangerous_intents_after_hours() -> None:
     assert executor.calls == []
 
 
-async def test_latency_budget_warning_emitted_when_exceeded(caplog: pytest.LogCaptureFixture) -> None:
+async def test_latency_budget_warning_emitted_when_exceeded(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Slow adapter executions should log a warning and mark telemetry."""
 
     response = InterpretResponse(
@@ -588,13 +591,30 @@ async def test_latency_budget_warning_emitted_when_exceeded(caplog: pytest.LogCa
         telemetry=telemetry,
     )
 
-    with caplog.at_level(logging.WARNING):
-        result = await handler.async_handle("turn on the living room lights")
+    guardrail_logger = logging.getLogger("custom_components.entangledhome.conversation")
+    guardrail_records: list[logging.LogRecord] = []
+
+    class _CaptureHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:  # noqa: D401 - inline stub
+            guardrail_records.append(record)
+
+    handler_capture = _CaptureHandler()
+    guardrail_logger.addHandler(handler_capture)
+    guardrail_logger.setLevel(logging.INFO)
+
+    try:
+        with caplog.at_level(logging.WARNING):
+            result = await handler.async_handle("turn on the living room lights")
+    finally:
+        guardrail_logger.removeHandler(handler_capture)
 
     assert result.success is True
     assert any("latency" in record.message.lower() for record in caplog.records)
     assert len(executor.calls) == 1
     assert len(adapter.calls) == 1
+    assert guardrail_records, "expected guardrail log for executed intent"
+    guardrail_payload = guardrail_records[-1].entangled_guardrail
+    assert guardrail_payload.get("flags") == ["latency_budget_exceeded"]
     flags = telemetry.events[-1].get("flags") if telemetry.events else []
     if flags is None:
         flags = []

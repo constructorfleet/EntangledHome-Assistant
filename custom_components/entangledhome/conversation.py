@@ -434,6 +434,8 @@ class EntangledHomeConversationHandler:
             execution_detail["allowed_hours"] = list(allowed_hours)
         if is_dangerous:
             execution_detail["dangerous"] = True
+        if telemetry_flags:
+            execution_detail["flags"] = list(telemetry_flags)
 
         self._emit_guardrail_log(
             utterance=utterance,
