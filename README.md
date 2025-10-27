@@ -143,6 +143,8 @@ Sensitive intents (unlocking doors, opening garages, disarming alarm panels) use
 Additional safeguards:
 
 - Confidence gating: set via options to require a minimum adapter confidence score.
+- Latency watchdog: configure the **Latency budget (ms)** option to warn when the adapter takes
+  longer than expected to respond.
 - Intent allow/block lists: restricts which service domains the adapter may invoke.
 - Signature checks: if enabled, Home Assistant signs requests to the adapter and validates the
   response signature documented in the adapter README.
@@ -161,6 +163,9 @@ Guardrail metadata can be edited globally or per intent:
 - **Allowed hours** &ndash; configure daily windows that suppress execution outside business hours.
 - **Recent command window overrides** &ndash; widen or shrink the deduplication window for intents
   that should never double-fire.
+- **Latency budget** &ndash; set the global adapter round-trip target (default 2000 ms). When exceeded,
+  Home Assistant emits a warning log and tags telemetry events with
+  `latency_budget_exceeded` so you can alert on degraded performance.
 
 When a dangerous intent executes, the integration annotates telemetry payloads with
 `dangerous: true` so downstream automations can log or audit critical invocations.

@@ -6,23 +6,6 @@ from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 import sys
 
-import pytest
-
-from custom_components.entangledhome import const as eh_const
-from custom_components.entangledhome.conversation import (
-    ConversationResult,
-    EntangledHomeConversationHandler,
-)
-from custom_components.entangledhome.intent_handlers import IntentHandlingError
-from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
-from custom_components.entangledhome.telemetry import TelemetryEvent, TelemetryRecorder
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-
-
-pytestmark = pytest.mark.asyncio
-
-
 if "httpx" not in sys.modules:  # pragma: no cover - executed in test environment
 
     class _StubAsyncClient:
@@ -37,13 +20,45 @@ if "httpx" not in sys.modules:  # pragma: no cover - executed in test environmen
         async def aclose(self) -> None:
             return None
 
+    class _StubTimeout:
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
     httpx_stub = ModuleType("httpx")
     httpx_stub.AsyncClient = _StubAsyncClient
-    httpx_stub.Timeout = object
+    httpx_stub.Timeout = _StubTimeout
     httpx_stub.HTTPError = Exception
     sys.modules["httpx"] = httpx_stub
 
+if "jsonschema" not in sys.modules:  # pragma: no cover - executed in test environment
 
+    jsonschema_stub = ModuleType("jsonschema")
+    jsonschema_stub.ValidationError = Exception
+
+    def _noop_validate(instance, schema=None, *args, **kwargs):
+        return None
+
+    jsonschema_stub.validate = _noop_validate
+    sys.modules["jsonschema"] = jsonschema_stub
+
+import pytest
+
+import logging
+
+from custom_components.entangledhome import const as eh_const
+from custom_components.entangledhome.conversation import (
+    ConversationResult,
+    EntangledHomeConversationHandler,
+)
+from custom_components.entangledhome.intent_handlers import IntentHandlingError
+from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
+from custom_components.entangledhome.telemetry import TelemetryEvent, TelemetryRecorder
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+
+pytestmark = pytest.mark.asyncio
 class DummyAdapter:
     """Adapter stub that yields predefined responses."""
 
@@ -122,6 +137,7 @@ class TelemetryStub(TelemetryRecorder):
         response: InterpretResponse | dict,
         duration_ms: float,
         outcome: str,
+        flags: Iterable[str] | None = None,
     ) -> TelemetryEvent:
         event = super().record_event(
             utterance=utterance,
@@ -129,6 +145,7 @@ class TelemetryStub(TelemetryRecorder):
             response=response,
             duration_ms=duration_ms,
             outcome=outcome,
+            flags=list(flags or []),
         )
         self.events.append(event.model_dump(mode="json"))
         return event
@@ -539,3 +556,46 @@ async def test_guardrail_blocks_dangerous_intents_after_hours() -> None:
     assert result.success is False
     assert "hours" in result.response.lower()
     assert executor.calls == []
+
+
+async def test_latency_budget_warning_emitted_when_exceeded(caplog: pytest.LogCaptureFixture) -> None:
+    """Slow adapter executions should log a warning and mark telemetry."""
+
+    response = InterpretResponse(
+        intent="turn_on",
+        area="living_room",
+        targets=["light.living_room"],
+        params={},
+        confidence=0.95,
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    telemetry = TelemetryStub()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            eh_const.OPT_MAX_LATENCY_MS: 1500.0,
+        },
+        guardrail_config={eh_const.OPT_MAX_LATENCY_MS: 1500.0},
+        monotonic_values=[0.0, 0.25, 2.0],
+        telemetry=telemetry,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = await handler.async_handle("turn on the living room lights")
+
+    assert result.success is True
+    assert any("latency" in record.message.lower() for record in caplog.records)
+    assert len(executor.calls) == 1
+    assert len(adapter.calls) == 1
+    flags = telemetry.events[-1].get("flags") if telemetry.events else []
+    if flags is None:
+        flags = []
+    assert "latency_budget_exceeded" in flags
