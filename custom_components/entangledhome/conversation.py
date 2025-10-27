@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_CONFIDENCE_GATE,
     DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_DEDUPLICATION_WINDOW,
+    DEFAULT_MAX_LATENCY_MS,
     DEFAULT_NIGHT_MODE_ENABLED,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_START_HOUR,
@@ -35,6 +36,7 @@ from .const import (
     OPT_CONFIDENCE_THRESHOLD,
     OPT_DEDUPLICATION_WINDOW,
     OPT_ENABLE_CONFIDENCE_GATE,
+    OPT_MAX_LATENCY_MS,
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
@@ -59,6 +61,7 @@ class GuardrailBundle:
     dangerous_intents: set[str] = field(default_factory=set)
     allowed_hours: dict[str, tuple[int, int]] = field(default_factory=dict)
     recent_command_windows: dict[str, float] = field(default_factory=dict)
+    max_latency_ms: float | None = DEFAULT_MAX_LATENCY_MS
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | "GuardrailBundle" | None) -> "GuardrailBundle":
@@ -98,12 +101,25 @@ class GuardrailBundle:
                 if window >= 0:
                     windows[str(intent)] = window
 
+        latency_budget = DEFAULT_MAX_LATENCY_MS
+        raw_latency = mapping.get(OPT_MAX_LATENCY_MS, DEFAULT_MAX_LATENCY_MS)
+        try:
+            parsed_latency = float(raw_latency)
+        except (TypeError, ValueError):
+            parsed_latency = None
+        else:
+            if parsed_latency <= 0:
+                parsed_latency = None
+        if parsed_latency is not None:
+            latency_budget = parsed_latency
+
         return cls(
             intent_thresholds=thresholds,
             disabled_intents=disabled,
             dangerous_intents=dangerous,
             allowed_hours=allowed,
             recent_command_windows=windows,
+            max_latency_ms=latency_budget,
         )
 
     def threshold_for(self, intent: str) -> float | None:
@@ -380,20 +396,46 @@ class EntangledHomeConversationHandler:
         end_time = self._monotonic()
         duration_ms = max(0.0, (end_time - start_time) * 1000.0)
 
+        latency_budget = guardrails.max_latency_ms or DEFAULT_MAX_LATENCY_MS
+        telemetry_flags: list[str] = []
+        if duration_ms > latency_budget:
+            telemetry_flags.append("latency_budget_exceeded")
+            try:
+                _LOGGER.warning(
+                    "Adapter round trip exceeded latency budget",
+                    extra={
+                        "entangled_latency": {
+                            "duration_ms": duration_ms,
+                            "budget_ms": latency_budget,
+                            "utterance": utterance,
+                            "intent": response.intent,
+                        }
+                    },
+                )
+            except Exception:  # pragma: no cover - logging should not break execution
+                _LOGGER.debug("Failed to emit latency warning", exc_info=True)
+
         self._record_telemetry(
             utterance=utterance,
             response=response,
             duration_ms=duration_ms,
             outcome="executed",
+            flags=telemetry_flags or None,
         )
 
-        execution_detail: dict[str, Any] = {"dedupe_window": dedupe_window}
+        execution_detail: dict[str, Any] = {
+            "dedupe_window": dedupe_window,
+            "duration_ms": duration_ms,
+            "latency_budget_ms": latency_budget,
+        }
         if threshold_override is not None:
             execution_detail["confidence_threshold"] = threshold_override
         if allowed_hours is not None:
             execution_detail["allowed_hours"] = list(allowed_hours)
         if is_dangerous:
             execution_detail["dangerous"] = True
+        if telemetry_flags:
+            execution_detail["flags"] = list(telemetry_flags)
 
         self._emit_guardrail_log(
             utterance=utterance,
@@ -489,6 +531,7 @@ class EntangledHomeConversationHandler:
         response: InterpretResponse,
         duration_ms: float,
         outcome: str,
+        flags: Iterable[str] | None = None,
     ) -> None:
         recorder = self._telemetry
         if recorder is None:
@@ -501,6 +544,7 @@ class EntangledHomeConversationHandler:
                 response=response,
                 duration_ms=duration_ms,
                 outcome=outcome,
+                flags=list(flags or []),
             )
         except Exception:  # pragma: no cover - telemetry should not disrupt handling
             pass

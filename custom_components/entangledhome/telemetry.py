@@ -23,6 +23,7 @@ class TelemetryEvent(BaseModel):
     response: InterpretResponse
     duration_ms: float
     outcome: str
+    flags: list[str] = Field(default_factory=list)
 
     def summary(self) -> dict[str, Any]:
         """Return a compact summary suitable for structured logging."""
@@ -35,6 +36,7 @@ class TelemetryEvent(BaseModel):
             "confidence": float(self.response.confidence),
             "duration_ms": float(self.duration_ms),
             "outcome": self.outcome,
+            "flags": list(self.flags),
         }
 
 
@@ -60,6 +62,7 @@ class TelemetryRecorder:
         response: InterpretResponse | dict,
         duration_ms: float,
         outcome: str,
+        flags: Sequence[str] | None = None,
     ) -> TelemetryEvent:
         """Validate and append a telemetry event."""
 
@@ -75,6 +78,7 @@ class TelemetryRecorder:
             response=response_model,
             duration_ms=float(duration_ms),
             outcome=outcome,
+            flags=list(flags or []),
             timestamp=self._clock(),
         )
         self._events.append(event)

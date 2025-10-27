@@ -15,6 +15,9 @@ service, and Qdrant pipeline.
 - Use `curl -X POST http://adapter:8080/interpret` with a sample payload from
   `tests/stubs/catalog.json` to ensure the adapter responds within the expected timeout.
 - Enable HTTP logging on the adapter to capture signature validation failures.
+- If Home Assistant logs `entangled_latency` warnings with the `latency_budget_exceeded` flag,
+  raise the **Latency budget (ms)** option or investigate slow network hops between Home Assistant
+  and the adapter service.
 
 ## Validation and metadata
 - Run `python3 -m script.hassfest` to validate manifests, icons, and translations before

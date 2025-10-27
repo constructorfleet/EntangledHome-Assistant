@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_ALLOWED_HOURS,
     DEFAULT_INTENTS_CONFIG,
     DEFAULT_INTENT_THRESHOLDS,
+    DEFAULT_MAX_LATENCY_MS,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_ENABLED,
     DEFAULT_NIGHT_MODE_START_HOUR,
@@ -52,6 +53,7 @@ from .const import (
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
+    OPT_MAX_LATENCY_MS,
     OPT_REFRESH_INTERVAL_MINUTES,
     TITLE,
 )
@@ -185,6 +187,12 @@ GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], 
         DEFAULT_DEDUPLICATION_WINDOW,
         vol.All(vol.Coerce(float), vol.Range(min=0.0, max=30.0)),
     ),
+    (
+        "float",
+        OPT_MAX_LATENCY_MS,
+        DEFAULT_MAX_LATENCY_MS,
+        vol.All(vol.Coerce(float), vol.Range(min=100.0, max=60000.0)),
+    ),
 )
 
 GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
@@ -264,6 +272,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
             OPT_NIGHT_MODE_START_HOUR: user_input[OPT_NIGHT_MODE_START_HOUR],
             OPT_NIGHT_MODE_END_HOUR: user_input[OPT_NIGHT_MODE_END_HOUR],
             OPT_DEDUPLICATION_WINDOW: user_input[OPT_DEDUPLICATION_WINDOW],
+            OPT_MAX_LATENCY_MS: user_input[OPT_MAX_LATENCY_MS],
             OPT_REFRESH_INTERVAL_MINUTES: user_input[OPT_REFRESH_INTERVAL_MINUTES],
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
             OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],

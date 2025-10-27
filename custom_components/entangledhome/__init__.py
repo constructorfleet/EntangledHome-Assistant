@@ -24,6 +24,7 @@ from .const import (
     DATA_TELEMETRY,
     DEFAULT_OPTION_VALUES,
     DEFAULT_INTENTS_CONFIG,
+    DEFAULT_MAX_LATENCY_MS,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_ALLOWED_HOURS,
@@ -31,6 +32,7 @@ from .const import (
     OPT_DISABLED_INTENTS,
     OPT_INTENTS_CONFIG,
     OPT_INTENT_THRESHOLDS,
+    OPT_MAX_LATENCY_MS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
 )
 
@@ -216,6 +218,16 @@ def _parse_guardrail_options(options: Mapping[str, Any] | None) -> dict[str, Any
                 return {}
         return {str(key): value for key, value in raw.items()}
 
+    def _latency_budget(option_key: str) -> float | None:
+        raw_value = options.get(option_key, DEFAULT_MAX_LATENCY_MS)
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        if value <= 0:
+            return None
+        return value
+
     thresholds: dict[str, float] = {}
     for intent, value in _dict(OPT_INTENT_THRESHOLDS).items():
         if _is_number(value):
@@ -240,6 +252,7 @@ def _parse_guardrail_options(options: Mapping[str, Any] | None) -> dict[str, Any
         OPT_DANGEROUS_INTENTS: set(_list(OPT_DANGEROUS_INTENTS)),
         OPT_ALLOWED_HOURS: allowed_hours,
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES: windows,
+        OPT_MAX_LATENCY_MS: _latency_budget(OPT_MAX_LATENCY_MS) or DEFAULT_MAX_LATENCY_MS,
     }
 
 
