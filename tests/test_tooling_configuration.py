@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ EXPECTED_TEST_PACKAGES = {
 EXPECTED_LINT_PACKAGES = {"ruff"}
 DEPENDENCY_PIN_MARKERS = ("==", ">=", "<=", "~=", "!=")
 REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
+TOOLING_TEST_FILE = Path(__file__).resolve()
 LOCKFILE = REPO_ROOT / "uv.lock"
 LOCK_PACKAGES = {"fastapi", "uvicorn"}
 RELEASE_WORKFLOW_FILE = REPO_ROOT / ".github" / "workflows" / "release.yml"
@@ -57,9 +60,7 @@ def _has_version_pin(entry: str) -> bool:
 
 def _iter_requirement_entries(path: Path) -> list[str]:
     return [
-        line
-        for line in path.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
+        line for line in path.read_text().splitlines() if line.strip() and not line.startswith("#")
     ]
 
 
@@ -78,6 +79,21 @@ def _load_release_workflow_text() -> str:
 
 def _assert_sorted(entries: list[str], *, message: str) -> None:
     assert entries == sorted(entries), message
+
+
+def _assert_ruff_format_clean(path: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", str(path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_tooling_configuration_module_is_ruff_formatted() -> None:
+    """The tooling tests should remain formatted according to Ruff."""
+
+    _assert_ruff_format_clean(TOOLING_TEST_FILE)
 
 
 def test_dev_dependency_groups_cover_test_stack() -> None:
@@ -103,8 +119,7 @@ def test_requirements_file_exists_for_pip_workflow() -> None:
     assert REQUIREMENTS_TEST_FILE.exists(), "requirements-test.txt should be present for pip users"
 
     entries = {
-        _normalize_requirement(line)
-        for line in _iter_requirement_entries(REQUIREMENTS_TEST_FILE)
+        _normalize_requirement(line) for line in _iter_requirement_entries(REQUIREMENTS_TEST_FILE)
     }
     missing = EXPECTED_TEST_PACKAGES - entries
     assert not missing, f"requirements-test.txt missing: {sorted(missing)}"
@@ -116,7 +131,9 @@ def test_dependency_manifests_do_not_pin_versions() -> None:
     pyproject = _load_pyproject()
     manifests = {
         "project.dependencies": pyproject["project"].get("dependencies", []),
-        "project.optional-dependencies.dev": pyproject["project"].get("optional-dependencies", {}).get("dev", []),
+        "project.optional-dependencies.dev": pyproject["project"]
+        .get("optional-dependencies", {})
+        .get("dev", []),
         "dependency-groups.dev": pyproject["dependency-groups"].get("dev", []),
         "requirements-test.txt": _iter_requirement_entries(REQUIREMENTS_TEST_FILE),
     }
@@ -157,9 +174,7 @@ def test_pyproject_dependency_lists_are_sorted() -> None:
 
     pyproject = _load_pyproject()
     dependencies = pyproject["project"].get("dependencies", [])
-    optional_dev = (
-        pyproject["project"].get("optional-dependencies", {}).get("dev", [])
-    )
+    optional_dev = pyproject["project"].get("optional-dependencies", {}).get("dev", [])
     dependency_group_dev = pyproject["dependency-groups"].get("dev", [])
 
     _assert_sorted(dependencies, message="project.dependencies must be sorted")
