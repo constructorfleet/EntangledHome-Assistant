@@ -2,10 +2,34 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+
+
+class _StubAsyncClient:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - helper
+        return
+
+    async def __aenter__(self) -> "_StubAsyncClient":  # pragma: no cover - helper
+        return self
+
+    async def __aexit__(self, *exc: Any) -> None:  # pragma: no cover - helper
+        return None
+
+
+class _HttpxStub(types.SimpleNamespace):
+    AsyncClient = _StubAsyncClient
+    Timeout = types.SimpleNamespace
+    HTTPError = Exception
+    HTTPStatusError = Exception
+    codes = types.SimpleNamespace(UNAUTHORIZED=401)
+
+
+sys.modules.setdefault("httpx", _HttpxStub())
 
 
 def _override_update_entry(
@@ -33,12 +57,20 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
         DEFAULT_NIGHT_MODE_ENABLED,
         DEFAULT_NIGHT_MODE_END_HOUR,
         DEFAULT_NIGHT_MODE_START_HOUR,
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
         OPT_ADAPTER_SHARED_SECRET,
         OPT_CONFIDENCE_THRESHOLD,
         OPT_DEDUPLICATION_WINDOW,
         OPT_NIGHT_MODE_ENABLED,
         OPT_NIGHT_MODE_END_HOUR,
         OPT_NIGHT_MODE_START_HOUR,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     )
 
     hass = HomeAssistant()
@@ -58,6 +90,20 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
     assert entry.options[OPT_NIGHT_MODE_END_HOUR] == DEFAULT_NIGHT_MODE_END_HOUR
     assert entry.options[OPT_DEDUPLICATION_WINDOW] == DEFAULT_DEDUPLICATION_WINDOW
     assert entry.options[OPT_ADAPTER_SHARED_SECRET] == ""
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED]
+        is DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED
+    )
+    assert entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == list(
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES
+    )
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
+    )
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS]
+        == DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS
+    )
 
 
 def test_ensure_default_options_populates_refresh_and_plex_defaults() -> None:
@@ -120,6 +166,10 @@ def test_ensure_default_options_preserves_existing_values() -> None:
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
         OPT_REFRESH_INTERVAL_MINUTES,
         OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
         OPT_VERIFIED_USERS,
     )
 
@@ -152,6 +202,10 @@ def test_ensure_default_options_preserves_existing_values() -> None:
             OPT_MAX_LATENCY_MS: DEFAULT_MAX_LATENCY_MS,
             OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS: False,
             OPT_VERIFIED_USERS: [],
+            OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: True,
+            OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: ["person.alice"],
+            OPT_SECONDARY_SIGNAL_VOICE_ENABLED: True,
+            OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 45.0,
         },
     )
 
@@ -161,3 +215,26 @@ def test_ensure_default_options_preserves_existing_values() -> None:
     assert entry.options[OPT_ENABLE_PLEX_SYNC] is False
     assert entry.options[OPT_CONFIDENCE_THRESHOLD] == 0.42
     assert entry.options[OPT_NIGHT_MODE_ENABLED] is True
+
+
+def test_ensure_default_options_clones_intents_config_defaults() -> None:
+    """Mutating seeded intents config should not affect module defaults."""
+
+    from custom_components.entangledhome import _ensure_default_options
+    from custom_components.entangledhome.const import (
+        DEFAULT_INTENTS_CONFIG,
+        OPT_INTENTS_CONFIG,
+    )
+
+    hass = HomeAssistant()
+
+    entry = ConfigEntry(entry_id="clone-intents", options={})
+
+    original_slots = list(DEFAULT_INTENTS_CONFIG["turn_on"]["slots"])
+
+    _ensure_default_options(hass, entry)
+
+    seeded_slots = entry.options[OPT_INTENTS_CONFIG]["turn_on"]["slots"]
+    seeded_slots.append("new_slot")
+
+    assert DEFAULT_INTENTS_CONFIG["turn_on"]["slots"] == original_slots

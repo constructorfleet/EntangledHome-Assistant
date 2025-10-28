@@ -14,9 +14,16 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
         DEFAULT_INTENTS_CONFIG,
         DEFAULT_PLEX_SYNC,
         DEFAULT_REFRESH_INTERVAL_MINUTES,
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
         OPT_ENABLE_PLEX_SYNC,
         OPT_INTENTS_CONFIG,
         OPT_REFRESH_INTERVAL_MINUTES,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     )
 
     entry = SimpleNamespace(options={})
@@ -29,6 +36,18 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
         assert defaults[OPT_REFRESH_INTERVAL_MINUTES] == DEFAULT_REFRESH_INTERVAL_MINUTES
         assert defaults[OPT_ENABLE_PLEX_SYNC] is DEFAULT_PLEX_SYNC
         assert defaults[OPT_INTENTS_CONFIG] == DEFAULT_INTENTS_CONFIG
+        assert (
+            defaults[OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED]
+            is DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED
+        )
+        assert defaults[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == []
+        assert (
+            defaults[OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
+        )
+        assert (
+            defaults[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS]
+            == DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS
+        )
 
     asyncio.run(_run())
 

@@ -38,6 +38,10 @@ from .const import (
     DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
     DEFAULT_REFRESH_INTERVAL_MINUTES,
     DEFAULT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+    DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+    DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+    DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
+    DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     DEFAULT_VERIFIED_USERS,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
@@ -58,6 +62,10 @@ from .const import (
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_REFRESH_INTERVAL_MINUTES,
     OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+    OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+    OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+    OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+    OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     OPT_VERIFIED_USERS,
     TITLE,
 )
@@ -192,6 +200,24 @@ GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], 
         vol.All(vol.Coerce(float), vol.Range(min=0.0, max=30.0)),
     ),
     (
+        "bool",
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        vol.Boolean(),
+    ),
+    (
+        "bool",
+        OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        vol.Boolean(),
+    ),
+    (
+        "float",
+        OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
+        DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
+        vol.All(vol.Coerce(float), vol.Range(min=1.0, max=3600.0)),
+    ),
+    (
         "float",
         OPT_MAX_LATENCY_MS,
         DEFAULT_MAX_LATENCY_MS,
@@ -209,6 +235,11 @@ GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
     (OPT_INTENT_THRESHOLDS, DEFAULT_INTENT_THRESHOLDS, _validate_intent_thresholds),
     (OPT_DISABLED_INTENTS, list(DEFAULT_DISABLED_INTENTS), _coerce_string_list),
     (OPT_DANGEROUS_INTENTS, list(DEFAULT_DANGEROUS_INTENTS), _coerce_string_list),
+    (
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        list(DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES),
+        _coerce_string_list,
+    ),
     (OPT_ALLOWED_HOURS, DEFAULT_ALLOWED_HOURS, _validate_allowed_hours),
     (
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
@@ -278,20 +309,14 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
         options = {
             OPT_ENABLE_CATALOG_SYNC: user_input[OPT_ENABLE_CATALOG_SYNC],
             OPT_ENABLE_CONFIDENCE_GATE: user_input[OPT_ENABLE_CONFIDENCE_GATE],
-            OPT_CONFIDENCE_THRESHOLD: user_input[OPT_CONFIDENCE_THRESHOLD],
-            OPT_NIGHT_MODE_ENABLED: user_input[OPT_NIGHT_MODE_ENABLED],
-            OPT_NIGHT_MODE_START_HOUR: user_input[OPT_NIGHT_MODE_START_HOUR],
-            OPT_NIGHT_MODE_END_HOUR: user_input[OPT_NIGHT_MODE_END_HOUR],
-            OPT_DEDUPLICATION_WINDOW: user_input[OPT_DEDUPLICATION_WINDOW],
-            OPT_MAX_LATENCY_MS: user_input[OPT_MAX_LATENCY_MS],
             OPT_REFRESH_INTERVAL_MINUTES: user_input[OPT_REFRESH_INTERVAL_MINUTES],
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
             OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],
             OPT_INTENTS_CONFIG: user_input[OPT_INTENTS_CONFIG],
-            OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS: user_input[
-                OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS
-            ],
         }
+
+        for _option_type, option_key, _default, _validator in GUARDRAIL_OPTION_FIELDS:
+            options[option_key] = user_input[option_key]
 
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
             options[option_key] = user_input[option_key]

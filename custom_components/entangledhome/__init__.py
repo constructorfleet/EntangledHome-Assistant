@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+from copy import deepcopy
 from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Mapping, Sequence
@@ -45,6 +46,18 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[str] = []
+
+
+def _clone_default(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: deepcopy(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [deepcopy(item) for item in value]
+    if isinstance(value, set):
+        return {deepcopy(item) for item in value}
+    if isinstance(value, tuple):
+        return [deepcopy(item) for item in value]
+    return deepcopy(value)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -118,7 +131,7 @@ def _ensure_default_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     for option_key, default_value in DEFAULT_OPTION_VALUES:
         if option_key not in options:
-            options[option_key] = default_value
+            options[option_key] = _clone_default(default_value)
             updated = True
 
     if updated:
