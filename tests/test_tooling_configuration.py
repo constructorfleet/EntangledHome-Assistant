@@ -14,6 +14,7 @@ EXPECTED_TEST_PACKAGES = {
     "fastapi",
     "uvicorn[standard]",
 }
+EXPECTED_LINT_PACKAGES = {"ruff"}
 PYTEST_HACC_MIN_VERSION = "0.13.205"
 REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
 LOCKFILE = REPO_ROOT / "uv.lock"
@@ -42,14 +43,26 @@ def _normalize_requirement(entry: str) -> str:
     return entry.strip().split("==")[0].split(">=")[0]
 
 
+def _load_dev_dependency_group() -> set[str]:
+    pyproject = tomllib.loads(REPO_ROOT.joinpath("pyproject.toml").read_text())
+    return {_normalize_requirement(item) for item in pyproject["dependency-groups"]["dev"]}
+
+
 def test_dev_dependency_groups_cover_test_stack() -> None:
     """The dev dependency group should include required test stack packages."""
 
-    pyproject = tomllib.loads(REPO_ROOT.joinpath("pyproject.toml").read_text())
-    dev_group = {_normalize_requirement(item) for item in pyproject["dependency-groups"]["dev"]}
+    dev_group = _load_dev_dependency_group()
     expected = EXPECTED_TEST_PACKAGES | {"coverage[toml]"}
     missing = expected - dev_group
     assert not missing, f"Missing dev dependencies: {sorted(missing)}"
+
+
+def test_dev_dependency_groups_include_lint_tooling() -> None:
+    """The dev dependency group should install lint tooling for contributors."""
+
+    dev_group = _load_dev_dependency_group()
+    missing = EXPECTED_LINT_PACKAGES - dev_group
+    assert not missing, f"Missing lint dependencies: {sorted(missing)}"
 
 
 def test_requirements_file_exists_for_pip_workflow() -> None:
