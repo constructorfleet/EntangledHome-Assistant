@@ -1,5 +1,5 @@
-# Sample intents configuration for EntangledHome.
-# Copy into configuration.yaml or reference via !include.
+# Reference mapping for the options flow Intent routing configuration field.
+# Paste an adapted JSON version of this mapping into the options flow; configuration.yaml does not read this file directly.
 
 entangledhome:
   intents_config:

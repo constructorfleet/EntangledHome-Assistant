@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+import pytest
+
 from homeassistant.core import HomeAssistant
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ENTRY_STATE_SETUP_IN_PROGRESS = "SETUP_IN_PROGRESS"
 
 
 def _read_text(path: Path) -> str:
@@ -22,6 +25,15 @@ def _read_text(path: Path) -> str:
 def _assert_contains(text: str, markers: list[str]) -> None:
     for marker in markers:
         assert marker in text
+
+
+def _run_ruff_format_check(path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["ruff", "format", "--check", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _ensure_httpx_stub() -> None:
@@ -50,6 +62,36 @@ def _ensure_httpx_stub() -> None:
     sys.modules["httpx"] = httpx_stub
 
 
+def _build_test_hass(tmp_path: Path) -> HomeAssistant:
+    """Instantiate Home Assistant with minimal test harness support."""
+
+    try:
+        hass = HomeAssistant()
+    except TypeError:
+        hass = HomeAssistant.__new__(HomeAssistant, config_dir=str(tmp_path))
+        try:
+            HomeAssistant.__init__(hass)
+        except TypeError:
+            HomeAssistant.__init__(hass, str(tmp_path))
+        hass.config_dir = str(tmp_path)
+
+    hass.config = SimpleNamespace(path=lambda *parts: str(tmp_path.joinpath(*parts)))
+    hass.config_entries = SimpleNamespace(async_update_entry=lambda *_args, **_kwargs: None)
+
+    try:
+        from homeassistant.helpers import frame  # type: ignore
+    except ImportError:
+        frame = None
+    if frame is not None:
+        frame.report_usage = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+
+    return hass
+
+
+def _imported_symbols() -> set[str]:
+    return set(globals())
+
+
 def test_readme_and_adapter_docs_cover_required_sections() -> None:
     readme = _read_text(REPO_ROOT / "README.md")
     _assert_contains(
@@ -59,7 +101,7 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
             "## Setup",
             "### Home Assistant Configuration",
             "configured exclusively via Home Assistant's config flow",
-            "YAML configuration is not supported",
+            "Use the options flow to manage guardrails, adapter credentials, and catalog synchronization.",
             "### Adapter Service Deployment",
             "### Qdrant Requirements",
             "## Guardrails and Security",
@@ -97,7 +139,7 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
     _assert_contains(
         example_config_text,
         [
-            "# EntangledHome - Assistant is configured via Home Assistant's UI",
+            "# Reference values for the EntangledHome - Assistant options flow fields.",
             "adapter_url (required)",
             "qdrant_host (default: qdrant)",
             "qdrant_api_key (optional)",
@@ -142,7 +184,7 @@ def test_readme_documents_configurable_intents_and_guardrails() -> None:
         "`slots`",
         "`threshold`",
         "Use the guardrail options",
-        "### YAML configuration example",
+        "### Options flow reference data",
         "### UI configuration walkthrough",
         "## Sentence customization",
         "## Qdrant ingestion scripts",
@@ -158,6 +200,15 @@ def test_readme_documents_configurable_intents_and_guardrails() -> None:
     sentences_example = examples_dir / "sentences.en.yaml"
     for example_path in (intents_example, sentences_example):
         assert example_path.exists()
+
+    intents_example_text = _read_text(intents_example)
+    _assert_contains(
+        intents_example_text,
+        [
+            "# Reference mapping for the options flow",
+            "Intent routing configuration",
+        ],
+    )
 
     intents_example_text = _read_text(intents_example)
     intents_example_markers = [
@@ -223,6 +274,19 @@ def test_release_notes_anchor_latest_version_history() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "symbol",
+    ["ConfigEntry", "ConfigEntryState"],
+)
+def test_documentation_suite_does_not_import_config_entry_symbols(symbol: str) -> None:
+    assert symbol not in _imported_symbols()
+
+
+def test_documentation_test_module_is_ruff_formatted() -> None:
+    result = _run_ruff_format_check(REPO_ROOT / "tests" / "test_documentation.py")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     """Custom sentence templates should override packaged defaults after reload."""
 
@@ -232,19 +296,24 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
 
     import custom_components.entangledhome as integration
 
-    hass = HomeAssistant()
-    hass.config = SimpleNamespace(path=lambda *parts: str(tmp_path.joinpath(*parts)))
-
-    def _update_entry(entry: ConfigEntry, *, options: dict[str, Any] | None = None) -> None:
-        if options is not None:
-            entry.options = dict(options)
-
-    hass.config_entries.async_update_entry = _update_entry  # type: ignore[method-assign]
-
-    entry = ConfigEntry(entry_id="doc-guard", options={})
-    entry.data = {}  # type: ignore[attr-defined]
-
     async def _run() -> None:
+        hass = _build_test_hass(tmp_path)
+
+        entry = SimpleNamespace(
+            entry_id="doc-guard",
+            options={},
+            data={},
+            add_update_listener=lambda callback: callback,
+            async_on_unload=lambda _callback: None,
+            state=ENTRY_STATE_SETUP_IN_PROGRESS,
+        )
+
+        def _update_entry(entry_to_update, *, options: dict[str, Any] | None = None) -> None:
+            if options is not None:
+                entry_to_update.options = dict(options)
+
+        hass.config_entries.async_update_entry = _update_entry  # type: ignore[method-assign]
+
         await integration.async_setup_entry(hass, entry)
 
         domain_entry = hass.data[DOMAIN][entry.entry_id]

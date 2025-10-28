@@ -1,6 +1,6 @@
-# EntangledHome - Assistant is configured via Home Assistant's UI.
+# Reference values for the EntangledHome - Assistant options flow fields.
 # Navigate to Settings -> Devices & Services -> + Add Integration and search for "EntangledHome - Assistant".
-# YAML configuration is not supported; use this reference to map config-flow fields to integration features.
+# YAML configuration is not supported; use this reference to map config-flow and options-flow fields to integration features.
 #
 # Required fields during initial setup:
 # - adapter_url (required): URL to the prompt-adapter service, e.g., http://adapter:8080/interpret

@@ -47,16 +47,20 @@ Troubleshooting tips:
 
 ### Home Assistant Configuration
 
-This integration is configured exclusively via Home Assistant's config flow; YAML configuration is not supported.
+This integration is configured exclusively via Home Assistant's config flow; YAML configuration is
+not supported.
+Use the options flow to manage guardrails, adapter credentials, and catalog synchronization.
 
 1. Copy the repository (HACS custom repository or manual) into `custom_components/`.
 2. In Home Assistant, navigate to **Settings → Devices & Services → + Add Integration** and search
    for **EntangledHome - Assistant**.
 3. When prompted, provide the adapter URL, Qdrant host, and optional Qdrant API key. The
    [`docs/examples/homeassistant_configuration.yaml`](docs/examples/homeassistant_configuration.yaml)
-   file lists each field exposed in the form along with its default value for quick reference.
+   file lists each field exposed in the form along with its default value for quick reference when
+   onboarding via the UI.
 4. After the entry is created, open **Configure** on the integration card to review options such as
-   catalog synchronization, guardrails, latency budgets, and Plex syncing.
+   catalog synchronization, guardrails, latency budgets, and Plex syncing. Home Assistant persists
+   these selections in `.storage`; re-open **Configure** whenever you need to adjust them.
 5. Restart Home Assistant and confirm the integration loads without warnings when prompted by the
    UI.
 
@@ -98,40 +102,18 @@ to the adapter. Set `threshold` when you want the adapter to be more cautious; u
 overrides when Home Assistant itself must block, delay, or demand secondary signals even if the
 adapter approves the intent.
 
-### YAML configuration example
+### Options flow reference data
 
-A standalone YAML example is available at
-[`docs/examples/intents.yaml`](docs/examples/intents.yaml). Include it from `configuration.yaml`
-or merge it into the existing `entangledhome` block:
+Home Assistant stores EntangledHome settings inside `.storage/core.config_entries`; the integration
+never reads from `configuration.yaml`. Use the examples under `docs/examples/` as worksheets while
+filling out the config flow and options flow:
 
-```yaml
-entangledhome:
-  intents_config:
-    entangledhome.turn_on:
-      enabled: true
-      slots:
-        color:
-          - warm
-          - daylight
-      threshold: 0.7
-    entangledhome.open_garage:
-      enabled: true
-      threshold: 0.9
-      slots:
-        area:
-          - garage
-      # Guardrail options such as dangerous_intents, intent_thresholds,
-      # intent_allowed_hours, and intent_secondary_signals live in the
-      # integration options UI. Pair this intent with those fields to mark
-      # it dangerous, restrict execution hours, or require secondary signals.
-    entangledhome.scene_activate:
-      enabled: false
-      slots:
-        scene:
-          - movie time
-          - relax mode
-      threshold: 0.6
-```
+- [`docs/examples/homeassistant_configuration.yaml`](docs/examples/homeassistant_configuration.yaml)
+  enumerates each field exposed during setup and in the options dialog along with default values,
+  validation hints, and behavioral notes.
+- [`docs/examples/intents.yaml`](docs/examples/intents.yaml) captures a representative
+  `intents_config` object. Paste an adapted JSON version of this mapping into the **Intent routing
+  configuration** field of the options flow to seed your own guardrails and slot hints.
 
 ### UI configuration walkthrough
 
