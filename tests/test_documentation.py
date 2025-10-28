@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -22,6 +23,15 @@ def _read_text(path: Path) -> str:
 def _assert_contains(text: str, markers: list[str]) -> None:
     for marker in markers:
         assert marker in text
+
+
+def _run_ruff_format_check(path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["ruff", "format", "--check", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _ensure_httpx_stub() -> None:
@@ -64,9 +74,7 @@ def _build_test_hass(tmp_path: Path) -> HomeAssistant:
         hass.config_dir = str(tmp_path)
 
     hass.config = SimpleNamespace(path=lambda *parts: str(tmp_path.joinpath(*parts)))
-    hass.config_entries = SimpleNamespace(
-        async_update_entry=lambda *_args, **_kwargs: None
-    )
+    hass.config_entries = SimpleNamespace(async_update_entry=lambda *_args, **_kwargs: None)
 
     try:
         from homeassistant.helpers import frame  # type: ignore
@@ -268,6 +276,11 @@ def test_documentation_suite_does_not_import_config_entry_symbol() -> None:
     assert "ConfigEntry" not in _imported_symbols()
 
 
+def test_documentation_test_module_is_ruff_formatted() -> None:
+    result = _run_ruff_format_check(REPO_ROOT / "tests" / "test_documentation.py")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
     """Custom sentence templates should override packaged defaults after reload."""
 
@@ -289,9 +302,7 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
             state=ConfigEntryState.SETUP_IN_PROGRESS,
         )
 
-        def _update_entry(
-            entry_to_update, *, options: dict[str, Any] | None = None
-        ) -> None:
+        def _update_entry(entry_to_update, *, options: dict[str, Any] | None = None) -> None:
             if options is not None:
                 entry_to_update.options = dict(options)
 
