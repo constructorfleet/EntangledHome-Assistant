@@ -116,9 +116,7 @@ class GuardrailBundle:
         if parsed_latency is not None:
             latency_budget = parsed_latency
 
-        require_verified = cls._coerce_bool(
-            mapping.get(OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS)
-        )
+        require_verified = cls._coerce_bool(mapping.get(OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS))
         verified_users = cls._coerce_verified_users(mapping.get(OPT_VERIFIED_USERS, ()))
 
         return cls(
@@ -393,7 +391,10 @@ class EntangledHomeConversationHandler:
                     reason="dangerous_intent_missing_verification",
                 )
             if guardrails.require_verified_user_for_dangerous:
-                if not normalized_verified_user or normalized_verified_user not in guardrails.verified_users:
+                if (
+                    not normalized_verified_user
+                    or normalized_verified_user not in guardrails.verified_users
+                ):
                     return self._guardrail_block(
                         utterance=utterance,
                         response=response,
