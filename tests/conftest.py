@@ -4,7 +4,20 @@
 # from __future__ import annotations
 
 # from collections.abc import Awaitable, Callable
+import asyncio
+
 import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_session_event_loop() -> None:  # pragma: no cover - infrastructure
+    """Provide an event loop for Home Assistant fixtures during tests."""
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield
+    asyncio.set_event_loop(None)
+    loop.close()
 
 
 @pytest.fixture

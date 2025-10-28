@@ -321,7 +321,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
             options[option_key] = user_input[option_key]
 
-        return await self.async_create_entry(title=TITLE, data=data, options=options)
+        return self.async_create_entry(title=TITLE, data=data, options=options)
 
     @staticmethod
     @callback
@@ -466,3 +466,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 return [str(item).strip() for item in parsed if str(item).strip()]
             return [str(item).strip() for item in value] if value else []
         return value
+
+
+# Home Assistant expects ConfigFlow symbol at module level.
+ConfigFlow = ConfigFlowHandler
