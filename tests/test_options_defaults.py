@@ -94,13 +94,11 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
         entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED]
         is DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED
     )
-    assert (
-        entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES]
-        == list(DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES)
+    assert entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == list(
+        DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES
     )
     assert (
-        entry.options[OPT_SECONDARY_SIGNAL_VOICE_ENABLED]
-        is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
+        entry.options[OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
     )
     assert (
         entry.options[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS]

@@ -42,8 +42,7 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
         )
         assert defaults[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == []
         assert (
-            defaults[OPT_SECONDARY_SIGNAL_VOICE_ENABLED]
-            is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
+            defaults[OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
         )
         assert (
             defaults[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS]
