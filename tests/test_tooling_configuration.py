@@ -17,7 +17,7 @@ EXPECTED_TEST_PACKAGES = {
     "uvicorn[standard]",
 }
 EXPECTED_LINT_PACKAGES = {"ruff"}
-PYTEST_HACC_MIN_VERSION = "0.13.205"
+DEPENDENCY_PIN_MARKERS = ("==", ">=", "<=", "~=", "!=")
 REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
 LOCKFILE = REPO_ROOT / "uv.lock"
 LOCK_PACKAGES = {"fastapi", "uvicorn"}
@@ -44,6 +44,21 @@ TROUBLESHOOTING_DOC = REPO_ROOT / "docs" / "troubleshooting.md"
 
 def _normalize_requirement(entry: str) -> str:
     return entry.strip().split("==")[0].split(">=")[0]
+
+
+def _has_version_pin(entry: str) -> bool:
+    stripped = entry.strip()
+    if not stripped or stripped.startswith("#"):
+        return False
+    return any(marker in stripped for marker in DEPENDENCY_PIN_MARKERS)
+
+
+def _iter_requirement_entries(path: Path) -> list[str]:
+    return [
+        line
+        for line in path.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
 
 
 def _load_pyproject() -> dict[str, Any]:
@@ -79,31 +94,30 @@ def test_requirements_file_exists_for_pip_workflow() -> None:
 
     entries = {
         _normalize_requirement(line)
-        for line in REQUIREMENTS_TEST_FILE.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
+        for line in _iter_requirement_entries(REQUIREMENTS_TEST_FILE)
     }
     missing = EXPECTED_TEST_PACKAGES - entries
     assert not missing, f"requirements-test.txt missing: {sorted(missing)}"
 
 
-def test_pytest_hacc_version_supports_python312() -> None:
-    """Ensure pytest-homeassistant-custom-component constraint supports Python 3.12 coverage wheels."""
+def test_dependency_manifests_do_not_pin_versions() -> None:
+    """Project manifests should avoid pinning dependency versions."""
 
-    requirement_lines = REQUIREMENTS_TEST_FILE.read_text().splitlines()
-    matching_lines = [
-        line.strip()
-        for line in requirement_lines
-        if line.strip().startswith("pytest-homeassistant-custom-component")
-    ]
-    assert matching_lines, "pytest-homeassistant-custom-component entry missing from requirements-test.txt"
+    pyproject = _load_pyproject()
+    manifests = {
+        "project.dependencies": pyproject["project"].get("dependencies", []),
+        "project.optional-dependencies.dev": pyproject["project"].get("optional-dependencies", {}).get("dev", []),
+        "dependency-groups.dev": pyproject["dependency-groups"].get("dev", []),
+        "requirements-test.txt": _iter_requirement_entries(REQUIREMENTS_TEST_FILE),
+    }
 
-    requirement_line = matching_lines[0]
-    assert (
-        f">={PYTEST_HACC_MIN_VERSION}" in requirement_line
-    ), (
-        "pytest-homeassistant-custom-component should require"
-        f" >= {PYTEST_HACC_MIN_VERSION} to pull Python 3.12 compatible coverage wheels"
-    )
+    violating = {
+        name: [entry for entry in entries if _has_version_pin(entry)]
+        for name, entries in manifests.items()
+    }
+
+    offenders = {name: entries for name, entries in violating.items() if entries}
+    assert not offenders, f"Pinned dependencies detected: {offenders}"
 
 
 def test_pyproject_requires_python_313() -> None:

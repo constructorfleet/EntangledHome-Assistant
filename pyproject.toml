@@ -9,10 +9,10 @@ description = "Home Assistant custom component placeholder project"
 requires-python = ">=3.13,<3.14"
 license = { text = "BSL-1.1" }
 dependencies = [
-    "homeassistant>=2025.4.4",
-    "httpx>=0.28.1",
-    "pydantic>=2.12.3",
-    "jsonschema>=4.23.0",
+    "homeassistant",
+    "httpx",
+    "pydantic",
+    "jsonschema",
 ]
 
 [project.optional-dependencies]
@@ -20,7 +20,7 @@ dev = [
     "ruff",
     "pytest",
     "pytest-cov",
-    "pytest-homeassistant-custom-component>=0.13.205",
+    "pytest-homeassistant-custom-component",
     "fastapi",
     "uvicorn[standard]",
     "httpx",
@@ -32,14 +32,14 @@ include = ["custom_components*"]
 
 [dependency-groups]
 dev = [
-    "coverage[toml]>=5.5",
-    "pluggy>=0.13.1",
-    "pytest>=6.2.2",
-    "pytest-cov>=2.10.1",
-    "pytest-homeassistant-custom-component>=0.13.205",
-    "ruff>=0.6.9",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.25.0",
+    "coverage[toml]",
+    "pluggy",
+    "pytest",
+    "pytest-cov",
+    "pytest-homeassistant-custom-component",
+    "ruff",
+    "fastapi",
+    "uvicorn[standard]",
 ]
 
 [tool.black]
