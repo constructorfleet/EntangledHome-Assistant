@@ -27,7 +27,7 @@ def test_model_client_repairs_json_and_clamps_confidence(monkeypatch):
 
     chunks = [
         'data: {"intent": "noop", "confidence": 0.2, "params": {}}\n\n',
-        'data: {"intent": "lights_on", "confidence": 1.4, "area": "living_room", "params": {}}\n\n',
+        'data: {"intent": "lights_on", "confidence": 1.4, "area": "living_room", "params": {}, "verified_user": "Alice"}\n\n',
         "data: [DONE]\n\n",
     ]
     requester = FakeRequester(chunks)
@@ -57,6 +57,7 @@ def test_model_client_repairs_json_and_clamps_confidence(monkeypatch):
     assert responses[0].confidence == pytest.approx(0.2)
     assert responses[1].confidence == pytest.approx(1.0)
     assert responses[1].area == "living_room"
+    assert responses[1].verified_user == "Alice"
 
     assert len(requester.calls) == 1
     payload = requester.calls[0]

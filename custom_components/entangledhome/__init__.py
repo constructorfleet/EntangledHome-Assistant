@@ -33,7 +33,9 @@ from .const import (
     OPT_INTENTS_CONFIG,
     OPT_INTENT_THRESHOLDS,
     OPT_MAX_LATENCY_MS,
+    OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+    OPT_VERIFIED_USERS,
 )
 
 if TYPE_CHECKING:
@@ -253,6 +255,10 @@ def _parse_guardrail_options(options: Mapping[str, Any] | None) -> dict[str, Any
         OPT_ALLOWED_HOURS: allowed_hours,
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES: windows,
         OPT_MAX_LATENCY_MS: _latency_budget(OPT_MAX_LATENCY_MS) or DEFAULT_MAX_LATENCY_MS,
+        OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS: _coerce_bool(
+            options.get(OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS, False)
+        ),
+        OPT_VERIFIED_USERS: set(_list(OPT_VERIFIED_USERS)),
     }
 
 

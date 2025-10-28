@@ -31,10 +31,12 @@ from .const import (
     DEFAULT_INTENTS_CONFIG,
     DEFAULT_INTENT_THRESHOLDS,
     DEFAULT_MAX_LATENCY_MS,
+    DEFAULT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     DEFAULT_NIGHT_MODE_END_HOUR,
     DEFAULT_NIGHT_MODE_ENABLED,
     DEFAULT_NIGHT_MODE_START_HOUR,
     DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
+    DEFAULT_VERIFIED_USERS,
     DEFAULT_PLEX_SYNC,
     DEFAULT_REFRESH_INTERVAL_MINUTES,
     DOMAIN,
@@ -50,10 +52,12 @@ from .const import (
     OPT_DANGEROUS_INTENTS,
     OPT_ALLOWED_HOURS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+    OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
     OPT_MAX_LATENCY_MS,
+    OPT_VERIFIED_USERS,
     OPT_REFRESH_INTERVAL_MINUTES,
     TITLE,
 )
@@ -193,6 +197,12 @@ GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], 
         DEFAULT_MAX_LATENCY_MS,
         vol.All(vol.Coerce(float), vol.Range(min=100.0, max=60000.0)),
     ),
+    (
+        "bool",
+        OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+        DEFAULT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+        vol.Boolean(),
+    ),
 )
 
 GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
@@ -205,6 +215,7 @@ GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
         DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
         _validate_recent_windows,
     ),
+    (OPT_VERIFIED_USERS, list(DEFAULT_VERIFIED_USERS), _coerce_string_list),
 )
 
 INTENTS_OPTION_FIELD: tuple[str, object, Any] = (
@@ -277,6 +288,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
             OPT_ENABLE_PLEX_SYNC: user_input[OPT_ENABLE_PLEX_SYNC],
             OPT_ADAPTER_SHARED_SECRET: user_input[OPT_ADAPTER_SHARED_SECRET],
             OPT_INTENTS_CONFIG: user_input[OPT_INTENTS_CONFIG],
+            OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS: user_input[
+                OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS
+            ],
         }
 
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:

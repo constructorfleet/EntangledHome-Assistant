@@ -117,6 +117,8 @@ def test_ensure_default_options_preserves_existing_values() -> None:
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
         OPT_INTENTS_CONFIG,
         OPT_MAX_LATENCY_MS,
+        OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+        OPT_VERIFIED_USERS,
         DEFAULT_INTENTS_CONFIG,
         DEFAULT_MAX_LATENCY_MS,
     )
@@ -148,6 +150,8 @@ def test_ensure_default_options_preserves_existing_values() -> None:
             OPT_RECENT_COMMAND_WINDOW_OVERRIDES: {},
             OPT_INTENTS_CONFIG: DEFAULT_INTENTS_CONFIG,
             OPT_MAX_LATENCY_MS: DEFAULT_MAX_LATENCY_MS,
+            OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS: False,
+            OPT_VERIFIED_USERS: [],
         },
     )
 

@@ -373,6 +373,140 @@ async def test_sensitive_intents_execute_when_signals_present() -> None:
     assert len(executor.calls) == 1
 
 
+async def test_dangerous_intents_block_without_verified_user_when_required() -> None:
+    """Dangerous intents should be blocked if verification is required and missing."""
+
+    opt_verified_flag = getattr(
+        eh_const, "OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS", "require_verified_user_for_dangerous"
+    )
+    opt_verified_users = getattr(eh_const, "OPT_VERIFIED_USERS", "verified_users")
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front_door",
+        targets=["lock.front_door"],
+        params={},
+        confidence=0.95,
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+        guardrail_config={
+            eh_const.OPT_DANGEROUS_INTENTS: ["unlock_door"],
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+    )
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is False
+    assert "verification" in result.response.lower()
+    assert executor.calls == []
+
+
+async def test_dangerous_intents_execute_when_verified_user_authorized() -> None:
+    """Dangerous intents should execute when verified user is configured and present."""
+
+    opt_verified_flag = getattr(
+        eh_const, "OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS", "require_verified_user_for_dangerous"
+    )
+    opt_verified_users = getattr(eh_const, "OPT_VERIFIED_USERS", "verified_users")
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front_door",
+        targets=["lock.front_door"],
+        params={},
+        confidence=0.95,
+        verified_user="alice",
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+        guardrail_config={
+            eh_const.OPT_DANGEROUS_INTENTS: ["unlock_door"],
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+    )
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is True
+    assert "success" in result.response.lower()
+    assert len(executor.calls) == 1
+
+
+async def test_dangerous_intents_block_when_verified_user_not_allowed() -> None:
+    """Dangerous intents should be blocked when user not in the verified allow list."""
+
+    opt_verified_flag = getattr(
+        eh_const, "OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS", "require_verified_user_for_dangerous"
+    )
+    opt_verified_users = getattr(eh_const, "OPT_VERIFIED_USERS", "verified_users")
+
+    response = InterpretResponse(
+        intent="unlock_door",
+        area="front_door",
+        targets=["lock.front_door"],
+        params={},
+        confidence=0.95,
+        verified_user="mallory",
+    )
+    adapter = DummyAdapter([response])
+    executor = DummyExecutor()
+    handler = _handler(
+        adapter=adapter,
+        executor=executor,
+        options={
+            eh_const.OPT_ENABLE_CONFIDENCE_GATE: False,
+            eh_const.OPT_CONFIDENCE_THRESHOLD: 0.5,
+            eh_const.OPT_NIGHT_MODE_ENABLED: False,
+            eh_const.OPT_NIGHT_MODE_START_HOUR: 23,
+            eh_const.OPT_NIGHT_MODE_END_HOUR: 6,
+            eh_const.OPT_DEDUPLICATION_WINDOW: 2.0,
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+        guardrail_config={
+            eh_const.OPT_DANGEROUS_INTENTS: ["unlock_door"],
+            opt_verified_flag: True,
+            opt_verified_users: ["alice"],
+        },
+    )
+
+    result = await handler.async_handle("unlock the front door")
+
+    assert result.success is False
+    assert "verified" in result.response.lower()
+    assert executor.calls == []
+
+
 async def test_adapter_client_receives_shared_secret_from_options() -> None:
     """Conversation handler should propagate the shared secret to the adapter."""
 

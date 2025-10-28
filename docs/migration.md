@@ -22,3 +22,6 @@ and Qdrant highlights.
 ### Recommended actions
 - Re-run the ingestion scripts to repopulate payload metadata with the latest schema fields.
 - Audit custom intents for `dangerous: true` flags and confirm they have matching secondary signals.
+- Populate the new **Verified users** allow list when enabling the **Require verified user for
+  dangerous intents** option and update adapters to emit the `verified_user` field for trusted
+  callers.
