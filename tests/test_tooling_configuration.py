@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from pathlib import Path
+from typing import Any
+
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_TEST_PACKAGES = {
@@ -19,6 +21,7 @@ PYTEST_HACC_MIN_VERSION = "0.13.205"
 REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
 LOCKFILE = REPO_ROOT / "uv.lock"
 LOCK_PACKAGES = {"fastapi", "uvicorn"}
+REQUIRED_PYTHON_SPEC = ">=3.13,<3.14"
 EXPECTED_HACS_METADATA = {
     "name": "EntangledHome - Assistant",
     "content_in_root": False,
@@ -43,8 +46,12 @@ def _normalize_requirement(entry: str) -> str:
     return entry.strip().split("==")[0].split(">=")[0]
 
 
+def _load_pyproject() -> dict[str, Any]:
+    return tomllib.loads(REPO_ROOT.joinpath("pyproject.toml").read_text())
+
+
 def _load_dev_dependency_group() -> set[str]:
-    pyproject = tomllib.loads(REPO_ROOT.joinpath("pyproject.toml").read_text())
+    pyproject = _load_pyproject()
     return {_normalize_requirement(item) for item in pyproject["dependency-groups"]["dev"]}
 
 
@@ -96,6 +103,16 @@ def test_pytest_hacc_version_supports_python312() -> None:
     ), (
         "pytest-homeassistant-custom-component should require"
         f" >= {PYTEST_HACC_MIN_VERSION} to pull Python 3.12 compatible coverage wheels"
+    )
+
+
+def test_pyproject_requires_python_313() -> None:
+    """Ensure the package metadata advertises Python 3.13 runtime support."""
+
+    pyproject = _load_pyproject()
+    requires_python = pyproject["project"]["requires-python"]
+    assert requires_python == REQUIRED_PYTHON_SPEC, (
+        "pyproject.toml must pin Python compatibility to >=3.13,<3.14 for release pipeline"
     )
 
 
