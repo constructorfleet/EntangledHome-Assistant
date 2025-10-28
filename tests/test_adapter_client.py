@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 from typing import Any
 
 import httpx
@@ -48,6 +49,153 @@ async def test_adapter_client_signs_payload_with_shared_secret() -> None:
     assert captured_body is not None
     expected = hmac.new(secret.encode("utf-8"), captured_body, hashlib.sha256).hexdigest()
     assert captured_signature == expected
+
+
+async def test_adapter_client_accepts_signed_response() -> None:
+    """Responses must be accepted when the signature matches the body."""
+
+    secret = "shared-secret"
+
+    response_payload = {
+        "intent": "lights_on",
+        "area": "kitchen",
+        "params": {"level": 50},
+        "confidence": 0.8,
+        "sensitive": False,
+        "required_secondary_signals": [],
+    }
+    body = json.dumps(response_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Entangled-Signature": signature,
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AdapterClient("https://adapter.invalid/interpret", client=http_client)
+        client._shared_secret = secret  # type: ignore[attr-defined]
+        result = await client.interpret("dim the kitchen", CatalogPayload())
+
+    assert result.intent == "lights_on"
+    assert result.area == "kitchen"
+    assert result.params == {"level": 50}
+
+
+async def test_adapter_client_accepts_signed_response_with_whitespace() -> None:
+    """Response signatures should be resilient to stray whitespace."""
+
+    secret = "shared-secret"
+
+    response_payload = {
+        "intent": "lights_on",
+        "area": "hallway",
+        "params": {"level": 10},
+        "confidence": 0.5,
+        "sensitive": False,
+        "required_secondary_signals": [],
+    }
+    body = json.dumps(response_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Entangled-Signature": f"  {signature}\n",
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AdapterClient("https://adapter.invalid/interpret", client=http_client)
+        client._shared_secret = secret  # type: ignore[attr-defined]
+        result = await client.interpret("dim the hallway", CatalogPayload())
+
+    assert result.intent == "lights_on"
+    assert result.area == "hallway"
+    assert result.params == {"level": 10}
+
+
+async def test_adapter_client_returns_noop_when_response_signature_missing(caplog) -> None:
+    """Missing signatures should downgrade to noop responses."""
+
+    secret = "shared-secret"
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "intent": "lights_on",
+                "area": "garage",
+                "params": {},
+                "confidence": 0.9,
+                "sensitive": False,
+                "required_secondary_signals": [],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    caplog.set_level("INFO")
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AdapterClient("https://adapter.invalid/interpret", client=http_client)
+        client._shared_secret = secret  # type: ignore[attr-defined]
+        response = await client.interpret("open the garage", CatalogPayload())
+
+    assert response.intent == "noop"
+    assert response.params.get("reason") == "Adapter response signature missing"
+    assert response.adapter_error == "Adapter response signature missing"
+    log_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "adapter_failed" in log_text
+
+
+async def test_adapter_client_returns_noop_when_response_signature_invalid(caplog) -> None:
+    """Invalid signatures should downgrade to noop responses."""
+
+    secret = "shared-secret"
+    tampered_secret = "other-secret"
+
+    payload = {
+        "intent": "lights_on",
+        "area": "living_room",
+        "params": {"level": 75},
+        "confidence": 0.88,
+        "sensitive": False,
+        "required_secondary_signals": [],
+    }
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    invalid_signature = hmac.new(tampered_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Entangled-Signature": invalid_signature,
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    caplog.set_level("INFO")
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AdapterClient("https://adapter.invalid/interpret", client=http_client)
+        client._shared_secret = secret  # type: ignore[attr-defined]
+        response = await client.interpret("turn on the lights", CatalogPayload())
+
+    assert response.intent == "noop"
+    assert response.params.get("reason") == "Adapter response signature invalid"
+    assert response.adapter_error == "Adapter response signature invalid"
+    log_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "adapter_failed" in log_text
 
 
 async def test_adapter_client_raises_when_signature_invalid() -> None:
