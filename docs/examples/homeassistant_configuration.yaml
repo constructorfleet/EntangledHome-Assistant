@@ -1,18 +1,28 @@
-# Example EntangledHome configuration
-entangledhome:
-  adapter_url: "http://adapter:8080/interpret"
-  qdrant:
-    host: "qdrant"
-    port: 6333
-    api_key: !secret qdrant_api_key
-  guardrails:
-    confidence_threshold: 0.65
-    secondary_signals:
-      presence:
-        enabled: true
-        entities:
-          - person.alice
-          - person.bob
-      voice:
-        enabled: true
-        ttl_seconds: 45
+# EntangledHome - Assistant is configured via Home Assistant's UI.
+# Navigate to Settings -> Devices & Services -> + Add Integration and search for "EntangledHome - Assistant".
+# YAML configuration is not supported; use this reference to map config-flow fields to integration features.
+#
+# Required fields during initial setup:
+# - adapter_url (required): URL to the prompt-adapter service, e.g., http://adapter:8080/interpret
+# - qdrant_host (default: qdrant): Hostname or IP for your Qdrant cluster
+# - qdrant_api_key (optional): API key injected into adapter requests (leave blank for unsecured clusters)
+#
+# Options available from the Configure dialog after setup:
+# - enable_catalog_sync (default: true): Synchronize Home Assistant registries into Qdrant
+# - enable_confidence_gate (default: false): Require adapter confidence >= confidence_threshold
+# - confidence_threshold (default: 0.7): Minimum adapter confidence when the gate is enabled
+# - night_mode_start_hour (default: 23): Night mode window start (24h clock)
+# - night_mode_end_hour (default: 6): Night mode window end (24h clock)
+# - deduplication_window_seconds (default: 2.0): Time window to suppress duplicate intents
+# - max_latency_ms (default: 2000.0): Expected adapter round-trip budget before warnings are logged
+# - enable_plex_sync (default: true): Keep Plex metadata aligned with Qdrant collections
+# - refresh_interval_minutes (default: 5): Catalog refresh cadence when sync is enabled
+# - require_verified_user_for_dangerous (default: false): Enforce verified user tokens for dangerous intents
+# - verified_users (default: []): Allowed verified user names when enforcement is enabled
+# - dangerous_intents (default: []): Intent IDs that require secondary signals
+# - disabled_intents (default: []): Intent IDs that should never execute
+# - intent_thresholds (default: {}): Per-intent overrides for adapter confidence requirements
+# - intent_allowed_hours (default: {}): Intent-specific allowed hour windows, provided as JSON
+# - intent_recent_command_windows (default: {}): Overrides for deduplication windows per intent
+# - intents_config (default: populated with sample intents): JSON mapping of adapter-facing intent metadata
+# - adapter_shared_secret (default: ""): Optional HMAC shared secret used to sign adapter payloads

@@ -47,34 +47,18 @@ Troubleshooting tips:
 
 ### Home Assistant Configuration
 
+This integration is configured exclusively via Home Assistant's config flow; YAML configuration is not supported.
+
 1. Copy the repository (HACS custom repository or manual) into `custom_components/`.
-2. Add the integration either through the UI or YAML. The YAML example below is also published
-   at [`docs/examples/homeassistant_configuration.yaml`](docs/examples/homeassistant_configuration.yaml).
-
-```yaml
-# configuration.yaml
-entangledhome:
-  adapter_url: "http://adapter:8080/interpret"
-  qdrant:
-    host: "qdrant"
-    port: 6333
-    api_key: !secret qdrant_api_key
-  guardrails:
-    confidence_threshold: 0.65
-    secondary_signals:
-      presence:
-        enabled: true
-        entities:
-          - person.alice
-          - person.bob
-      voice:
-        enabled: true
-        ttl_seconds: 45
-```
-
-3. Restart Home Assistant and confirm the integration loads without warnings.
-4. (Optional) Enable the catalog coordinator to push entity updates to Qdrant via the
-   integration options flow.
+2. In Home Assistant, navigate to **Settings → Devices & Services → + Add Integration** and search
+   for **EntangledHome - Assistant**.
+3. When prompted, provide the adapter URL, Qdrant host, and optional Qdrant API key. The
+   [`docs/examples/homeassistant_configuration.yaml`](docs/examples/homeassistant_configuration.yaml)
+   file lists each field exposed in the form along with its default value for quick reference.
+4. After the entry is created, open **Configure** on the integration card to review options such as
+   catalog synchronization, guardrails, latency budgets, and Plex syncing.
+5. Restart Home Assistant and confirm the integration loads without warnings when prompted by the
+   UI.
 
 ### Qdrant Requirements
 

@@ -58,6 +58,8 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
             "## Architecture Overview",
             "## Setup",
             "### Home Assistant Configuration",
+            "configured exclusively via Home Assistant's config flow",
+            "YAML configuration is not supported",
             "### Adapter Service Deployment",
             "### Qdrant Requirements",
             "## Guardrails and Security",
@@ -91,7 +93,24 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
 
     example_config = REPO_ROOT / "docs" / "examples" / "homeassistant_configuration.yaml"
     assert example_config.exists()
-    assert "entangledhome:" in _read_text(example_config)
+    example_config_text = _read_text(example_config)
+    _assert_contains(
+        example_config_text,
+        [
+            "# EntangledHome - Assistant is configured via Home Assistant's UI",
+            "adapter_url (required)",
+            "qdrant_host (default: qdrant)",
+            "qdrant_api_key (optional)",
+            "enable_catalog_sync (default: true)",
+            "enable_confidence_gate (default: false)",
+            "confidence_threshold (default: 0.7)",
+            "night_mode_start_hour (default: 23)",
+            "night_mode_end_hour (default: 6)",
+            "deduplication_window_seconds (default: 2.0)",
+            "max_latency_ms (default: 2000.0)",
+        ],
+    )
+    assert "entangledhome:" not in example_config_text
 
     sentences_doc = REPO_ROOT / "docs" / "sentences.md"
     assert sentences_doc.exists()

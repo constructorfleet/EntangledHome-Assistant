@@ -115,20 +115,9 @@ HACS‑installable custom component that:
 1. HACS → Integrations → ⋯ → **Custom repositories** → paste this repo URL, category **Integration**.
 2. Install **EntangledHome - Assistant**.
 3. Restart Home Assistant.
-4. Add configuration in `configuration.yaml` (or UI when config_flow is added):
-
-```yaml
-entangledhome:
-  adapter_url: "http://adapter:8080/interpret"  # your prompt adapter endpoint
-  qdrant:
-    host: qdrant
-    port: 6333
-    api_key: "YOUR_KEY"  # if applicable
-  collections:
-    plex: "plex_media"
-    entities: "ha_entities"
-  sync_entities_to_qdrant: false  # set true to push HA registry periodically
-```
+4. Configure the integration via Home Assistant's config flow (Settings → Devices & Services → + Add
+   Integration → **EntangledHome - Assistant**). YAML configuration is no longer supported; use the
+   options flow to manage guardrails, catalog synchronization, and adapter credentials.
 
 ## Usage
 - Enable **Assist** or Conversation.
