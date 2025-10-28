@@ -11,19 +11,19 @@ license = { text = "BSL-1.1" }
 dependencies = [
     "homeassistant",
     "httpx",
-    "pydantic",
     "jsonschema",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
+    "fastapi",
+    "httpx",
     "pytest",
     "pytest-cov",
     "pytest-homeassistant-custom-component",
-    "fastapi",
+    "ruff",
     "uvicorn[standard]",
-    "httpx",
 ]
 
 [tool.setuptools.packages.find]
@@ -33,12 +33,12 @@ include = ["custom_components*"]
 [dependency-groups]
 dev = [
     "coverage[toml]",
+    "fastapi",
     "pluggy",
     "pytest",
     "pytest-cov",
     "pytest-homeassistant-custom-component",
     "ruff",
-    "fastapi",
     "uvicorn[standard]",
 ]
 

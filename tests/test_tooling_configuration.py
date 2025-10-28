@@ -76,6 +76,10 @@ def _load_release_workflow_text() -> str:
     return RELEASE_WORKFLOW_FILE.read_text()
 
 
+def _assert_sorted(entries: list[str], *, message: str) -> None:
+    assert entries == sorted(entries), message
+
+
 def test_dev_dependency_groups_cover_test_stack() -> None:
     """The dev dependency group should include required test stack packages."""
 
@@ -145,6 +149,27 @@ def test_release_workflow_targets_python_313() -> None:
     expected_snippet = f'python-version: "{RELEASE_WORKFLOW_PYTHON_VERSION}"'
     assert expected_snippet in workflow_text, (
         "release workflow should use python-version '3.13' to match project metadata"
+    )
+
+
+def test_pyproject_dependency_lists_are_sorted() -> None:
+    """Pyproject dependency lists should be sorted for readability."""
+
+    pyproject = _load_pyproject()
+    dependencies = pyproject["project"].get("dependencies", [])
+    optional_dev = (
+        pyproject["project"].get("optional-dependencies", {}).get("dev", [])
+    )
+    dependency_group_dev = pyproject["dependency-groups"].get("dev", [])
+
+    _assert_sorted(dependencies, message="project.dependencies must be sorted")
+    _assert_sorted(
+        optional_dev,
+        message="project.optional-dependencies.dev must be sorted",
+    )
+    _assert_sorted(
+        dependency_group_dev,
+        message="dependency-groups.dev must be sorted",
     )
 
 
