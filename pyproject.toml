@@ -6,39 +6,40 @@ build-backend = "setuptools.build_meta"
 name = "entangledhome-assistant"
 version = "0.5.0"
 description = "Home Assistant custom component placeholder project"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 license = { text = "BSL-1.1" }
 dependencies = [
-    "homeassistant>=2025.4.4",
-    "httpx>=0.28.1",
-    "pydantic>=2.12.3",
-    "jsonschema>=4.23.0",
+    "homeassistant",
+    "httpx",
+    "jsonschema",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
+    "fastapi",
+    "httpx",
     "pytest",
     "pytest-cov",
     "pytest-homeassistant-custom-component",
-    "fastapi",
+    "ruff",
     "uvicorn[standard]",
-    "httpx",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["custom_components*"]
+include = ["custom_components*", "sitecustomize"]
 
 [dependency-groups]
 dev = [
-    "coverage[toml]>=5.5",
-    "pluggy>=0.13.1",
-    "pytest>=6.2.2",
-    "pytest-cov>=2.10.1",
-    "pytest-homeassistant-custom-component>=0.2.1",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.25.0",
+    "coverage[toml]",
+    "fastapi",
+    "pluggy",
+    "pytest",
+    "pytest-cov",
+    "pytest-homeassistant-custom-component",
+    "ruff",
+    "uvicorn[standard]",
 ]
 
 [tool.black]
