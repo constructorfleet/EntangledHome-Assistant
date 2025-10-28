@@ -14,6 +14,8 @@ EXPECTED_TEST_PACKAGES = {
     "fastapi",
     "uvicorn[standard]",
 }
+PYTEST_HACC_MIN_VERSION = "0.13.205"
+REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
 LOCKFILE = REPO_ROOT / "uv.lock"
 LOCK_PACKAGES = {"fastapi", "uvicorn"}
 EXPECTED_HACS_METADATA = {
@@ -53,16 +55,35 @@ def test_dev_dependency_groups_cover_test_stack() -> None:
 def test_requirements_file_exists_for_pip_workflow() -> None:
     """requirements-test.txt should mirror the dev dependency stack."""
 
-    requirements_path = REPO_ROOT / "requirements-test.txt"
-    assert requirements_path.exists(), "requirements-test.txt should be present for pip users"
+    assert REQUIREMENTS_TEST_FILE.exists(), "requirements-test.txt should be present for pip users"
 
     entries = {
         _normalize_requirement(line)
-        for line in requirements_path.read_text().splitlines()
+        for line in REQUIREMENTS_TEST_FILE.read_text().splitlines()
         if line.strip() and not line.startswith("#")
     }
     missing = EXPECTED_TEST_PACKAGES - entries
     assert not missing, f"requirements-test.txt missing: {sorted(missing)}"
+
+
+def test_pytest_hacc_version_supports_python312() -> None:
+    """Ensure pytest-homeassistant-custom-component constraint supports Python 3.12 coverage wheels."""
+
+    requirement_lines = REQUIREMENTS_TEST_FILE.read_text().splitlines()
+    matching_lines = [
+        line.strip()
+        for line in requirement_lines
+        if line.strip().startswith("pytest-homeassistant-custom-component")
+    ]
+    assert matching_lines, "pytest-homeassistant-custom-component entry missing from requirements-test.txt"
+
+    requirement_line = matching_lines[0]
+    assert (
+        f">={PYTEST_HACC_MIN_VERSION}" in requirement_line
+    ), (
+        "pytest-homeassistant-custom-component should require"
+        f" >= {PYTEST_HACC_MIN_VERSION} to pull Python 3.12 compatible coverage wheels"
+    )
 
 
 def test_uv_lock_includes_required_packages() -> None:
