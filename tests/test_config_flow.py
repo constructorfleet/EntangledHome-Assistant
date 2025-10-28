@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-import importlib.util
+import asyncio
+import importlib
+import inspect
 import json
 from pathlib import Path
 
@@ -17,12 +19,8 @@ LOCALIZATION_PATHS = [
     pytest.param(TRANSLATIONS_EN_PATH, id="en"),
 ]
 
-_CONST_SPEC = importlib.util.spec_from_file_location(
-    "entangledhome_const", REPO_ROOT / "custom_components/entangledhome/const.py"
-)
-assert _CONST_SPEC and _CONST_SPEC.loader
-const = importlib.util.module_from_spec(_CONST_SPEC)
-_CONST_SPEC.loader.exec_module(const)
+const = importlib.import_module("custom_components.entangledhome.const")
+config_flow_module = importlib.import_module("custom_components.entangledhome.config_flow")
 
 USER_SCHEMA_FIELDS = {
     const.CONF_ADAPTER_URL,
@@ -38,6 +36,10 @@ USER_SCHEMA_FIELDS = {
     const.OPT_DEDUPLICATION_WINDOW,
     const.OPT_REFRESH_INTERVAL_MINUTES,
     const.OPT_ENABLE_PLEX_SYNC,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     const.OPT_INTENTS_CONFIG,
 }
 
@@ -52,6 +54,10 @@ OPTIONS_SCHEMA_FIELDS = {
     const.OPT_NIGHT_MODE_START_HOUR,
     const.OPT_NIGHT_MODE_END_HOUR,
     const.OPT_DEDUPLICATION_WINDOW,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     const.OPT_INTENTS_CONFIG,
 }
 
@@ -61,6 +67,10 @@ GUARDRAIL_DESCRIPTION_FIELDS = {
     const.OPT_NIGHT_MODE_END_HOUR,
     const.OPT_DEDUPLICATION_WINDOW,
     const.OPT_REFRESH_INTERVAL_MINUTES,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
 }
 
 
@@ -75,6 +85,17 @@ def _resolve(mapping: dict, *keys: str) -> dict[str, str]:
         current = current[key]
     assert isinstance(current, dict), f"Expected mapping at {keys!r}"
     return current
+
+
+def _build_user_input(**overrides: object) -> dict[str, object]:
+    base = config_flow_module.USER_SCHEMA(
+        {
+            const.CONF_ADAPTER_URL: "http://adapter",
+            const.CONF_QDRANT_HOST: "qdrant",
+        }
+    )
+    base.update(overrides)
+    return base
 
 
 @pytest.mark.parametrize("path", LOCALIZATION_PATHS)
@@ -105,3 +126,36 @@ def test_guardrail_fields_include_help_text(path: Path) -> None:
     descriptions = _resolve(mapping, "config", "step", "user", "data_description")
     missing = GUARDRAIL_DESCRIPTION_FIELDS.difference(descriptions)
     assert not missing, f"Missing guardrail descriptions in {path.name}: {sorted(missing)}"
+
+
+def test_user_flow_populates_secondary_signal_options() -> None:
+    """User config flow should persist secondary signal guardrail fields."""
+
+    user_input = _build_user_input(
+        **{
+            const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: True,
+            const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: [
+                "person.alice",
+                "person.bob",
+            ],
+            const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED: True,
+            const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 45.0,
+        }
+    )
+
+    async def _run_flow() -> object:
+        flow = config_flow_module.ConfigFlowHandler()
+        result = await flow.async_step_user(user_input)
+        return result
+
+    result = asyncio.run(_run_flow())
+    assert not inspect.isawaitable(result)
+
+    options = result["options"]
+    assert options[const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED] is True
+    assert options[const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == [
+        "person.alice",
+        "person.bob",
+    ]
+    assert options[const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is True
+    assert options[const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS] == 45.0
