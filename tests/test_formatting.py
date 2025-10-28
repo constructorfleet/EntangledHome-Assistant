@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 TARGET_FILES = [
     Path("tests/test_config_options_flow.py"),
     Path("tests/test_options_defaults.py"),

@@ -12,18 +12,18 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
     from custom_components.entangledhome.config_flow import OptionsFlowHandler
     from custom_components.entangledhome.const import (
         DEFAULT_INTENTS_CONFIG,
+        DEFAULT_PLEX_SYNC,
+        DEFAULT_REFRESH_INTERVAL_MINUTES,
         DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
         DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
         DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
-        DEFAULT_PLEX_SYNC,
-        DEFAULT_REFRESH_INTERVAL_MINUTES,
         OPT_ENABLE_PLEX_SYNC,
+        OPT_INTENTS_CONFIG,
+        OPT_REFRESH_INTERVAL_MINUTES,
         OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
         OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
         OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
         OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
-        OPT_INTENTS_CONFIG,
-        OPT_REFRESH_INTERVAL_MINUTES,
     )
 
     entry = SimpleNamespace(options={})

@@ -21,10 +21,17 @@ def _run_ruff(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_imports_are_sorted() -> None:
+@pytest.mark.parametrize(
+    "targets",
+    [
+        pytest.param((), id="repo"),
+        pytest.param(("custom_components/entangledhome/config_flow.py",), id="config_flow"),
+    ],
+)
+def test_imports_are_sorted(targets: tuple[str, ...]) -> None:
     """Import blocks should be formatted according to Ruff's I rules."""
 
-    result = _run_ruff("check", "--select", "I")
+    result = _run_ruff("check", "--select", "I", *targets)
 
     assert result.returncode == 0, result.stdout + result.stderr
 
