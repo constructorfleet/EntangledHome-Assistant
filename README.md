@@ -74,9 +74,29 @@ This integration is configured exclusively via Home Assistant's config flow; YAM
 
 ## Configurable intents
 
-Fine-tune the adapter handshake per intent by editing the `intents_config` mapping. This mapping
-controls slot hints, guardrail behavior, and downstream service overrides the adapter should
-respect when generating structured intents.
+Fine-tune the adapter handshake per intent by editing the `intents_config` mapping. The mapping is
+limited on purpose so the adapter receives just enough context to shape utterances before guardrail
+enforcement happens inside Home Assistant.
+
+`intents_config` supports the following keys:
+
+- `enabled` – set to `false` to stop forwarding an intent to the adapter without deleting it.
+- `slots` – optional mapping of slot names to hint lists the adapter can surface as synonyms or
+  canonical values.
+- `threshold` – float (0–1) that nudges the adapter to demand more or less confidence for a given
+  intent.
+
+Use the guardrail options in the options flow—**Dangerous intents** (`dangerous_intents`),
+**Intent thresholds** (`intent_thresholds`), **Intent allowed hours** (`intent_allowed_hours`),
+**Intent recent command windows** (`intent_recent_command_windows`), and **Intent secondary signals**
+(`intent_secondary_signals`)—to configure execution behavior that lives outside the adapter mapping
+(`enabled`, `slots`, `threshold`).
+
+Per-intent guardrail overrides such as `intent_thresholds`, `intent_allowed_hours`,
+`intent_recent_command_windows`, and `intent_secondary_signals` run after `intents_config` is sent
+to the adapter. Set `threshold` when you want the adapter to be more cautious; use the guardrail
+overrides when Home Assistant itself must block, delay, or demand secondary signals even if the
+adapter approves the intent.
 
 ### YAML configuration example
 
@@ -88,31 +108,43 @@ or merge it into the existing `entangledhome` block:
 entangledhome:
   intents_config:
     entangledhome.turn_on:
-      slot_hints:
+      enabled: true
+      slots:
         color:
           - warm
           - daylight
-      confidence_threshold: 0.75
+      threshold: 0.7
     entangledhome.open_garage:
-      dangerous: true
-      allowed_hours:
-        start: 6
-        end: 21
-      required_secondary_signals:
-        - presence:person.alice
+      enabled: true
+      threshold: 0.9
+      slots:
+        area:
+          - garage
+      # Guardrail options such as dangerous_intents, intent_thresholds,
+      # intent_allowed_hours, and intent_secondary_signals live in the
+      # integration options UI. Pair this intent with those fields to mark
+      # it dangerous, restrict execution hours, or require secondary signals.
+    entangledhome.scene_activate:
+      enabled: false
+      slots:
+        scene:
+          - movie time
+          - relax mode
+      threshold: 0.6
 ```
 
 ### UI configuration walkthrough
 
 1. Navigate to **Settings → Devices & Services → Integrations → EntangledHome - Assistant**.
 2. Choose **Configure** to open the options flow and scroll to **Intent routing configuration**.
-3. Paste a JSON object mirroring the YAML example above, including keys such as
-   `dangerous`, `confidence_threshold`, `allowed_hours`, and `required_secondary_signals`.
-4. Adjust the companion fields exposed in the UI (`Dangerous intents`, `Intent thresholds`,
-   `Allowed hours`, and `Recent command window overrides`) to keep guardrail metadata synchronized
-   with the adapter hints.
-5. Submit the form and reload the integration. The adapter receives the updated mapping on the
-   next utterance.
+3. Paste a JSON object mirroring the YAML example above, including keys such as `enabled`, `slots`,
+   and `threshold`.
+4. Use the guardrail fields in the same dialog (for example **Dangerous intents**,
+   **Intent thresholds**, **Intent allowed hours**, **Intent recent command windows**, and
+   **Intent secondary signals**) to configure execution policies that should not live inside the
+   adapter mapping.
+5. Submit the form and reload the integration. The adapter receives the updated mapping on the next
+   utterance, and the guardrail overrides apply immediately on the Home Assistant side.
 
 ## Guardrails and Security
 
@@ -143,15 +175,17 @@ Additional safeguards:
 Guardrail metadata can be edited globally or per intent:
 
 - **Confidence threshold** &ndash; set the global gate in the options flow or override individual
-  intents via `intents_config.<intent>.confidence_threshold`.
-- **Dangerous intents** &ndash; list intent IDs in the **Dangerous intents** field or mark
-  `dangerous: true` inside the intents mapping. Dangerous intents require secondary signals and
-  can be constrained to allowed hours.
+  intents via the **Intent thresholds** field (`intent_thresholds`). The adapter still receives the
+  `threshold` value from `intents_config`, but Home Assistant ultimately enforces the
+  `intent_thresholds` override if one is provided.
+- **Dangerous intents** &ndash; list intent IDs in the **Dangerous intents** field (`dangerous_intents`).
+  Pair dangerous entries with **Intent secondary signals** (`intent_secondary_signals`) and
+  **Intent allowed hours** (`intent_allowed_hours`) to require presence/voice tokens or suppress the
+  intent overnight.
 - **Require verified user for dangerous intents** &ndash; when enabled, the integration cross-checks the
   adapter’s `verified_user` field against the **Verified users** allow list before executing.
-- **Allowed hours** &ndash; configure daily windows that suppress execution outside business hours.
-- **Recent command window overrides** &ndash; widen or shrink the deduplication window for intents
-  that should never double-fire.
+- **Recent command window overrides** &ndash; widen or shrink deduplication for specific intents via the
+  **Intent recent command windows** field (`intent_recent_command_windows`).
 - **Latency budget** &ndash; set the global adapter round-trip target (default 2000 ms). When exceeded,
   Home Assistant emits a warning log and tags telemetry events with
   `latency_budget_exceeded` so you can alert on degraded performance.

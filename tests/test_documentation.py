@@ -127,24 +127,48 @@ def test_readme_and_adapter_docs_cover_required_sections() -> None:
 
 def test_readme_documents_configurable_intents_and_guardrails() -> None:
     readme = _read_text(REPO_ROOT / "README.md")
-    _assert_contains(
-        readme,
-        [
-            "## Configurable intents",
-            "### YAML configuration example",
-            "### UI configuration walkthrough",
-            "## Sentence customization",
-            "## Guardrail thresholds and dangerous intents",
-            "## Qdrant ingestion scripts",
-            "## Adapter deployment",
-            "## Migration notes",
-            "## Troubleshooting",
-        ],
-    )
+    guardrail_markers = [
+        "`dangerous_intents`",
+        "`intent_allowed_hours`",
+        "`intent_secondary_signals`",
+        "`intent_thresholds`",
+        "`intent_recent_command_windows`",
+    ]
+
+    readme_markers = [
+        "## Configurable intents",
+        "`intents_config` supports the following keys",
+        "`enabled`",
+        "`slots`",
+        "`threshold`",
+        "Use the guardrail options",
+        "### YAML configuration example",
+        "### UI configuration walkthrough",
+        "## Sentence customization",
+        "## Qdrant ingestion scripts",
+        "## Adapter deployment",
+        "## Migration notes",
+        "## Troubleshooting",
+    ]
+
+    _assert_contains(readme, readme_markers + guardrail_markers)
 
     examples_dir = REPO_ROOT / "docs" / "examples"
-    for example_path in (examples_dir / "intents.yaml", examples_dir / "sentences.en.yaml"):
+    intents_example = examples_dir / "intents.yaml"
+    sentences_example = examples_dir / "sentences.en.yaml"
+    for example_path in (intents_example, sentences_example):
         assert example_path.exists()
+
+    intents_example_text = _read_text(intents_example)
+    intents_example_markers = [
+        "enabled:",
+        "slots:",
+        "threshold:",
+        "# Guardrail options such as",
+        "dangerous_intents",
+        "intent_thresholds",
+    ]
+    _assert_contains(intents_example_text, intents_example_markers)
 
     doc_checks = {
         REPO_ROOT / "docs" / "migration.md": [
