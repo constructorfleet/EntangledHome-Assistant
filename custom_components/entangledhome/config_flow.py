@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import selector
 
 try:  # pragma: no cover - fallback for older Home Assistant stubs
     from homeassistant.config_entries import ConfigFlowResult, OptionsFlowResult
@@ -168,104 +169,166 @@ def _validate_intents_config(value: object) -> dict[str, dict[str, object]]:
     return intents
 
 
-GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Schema], ...] = (
+TEXT_SELECTOR = selector.TextSelector()
+TEXTAREA_SELECTOR = selector.TextSelector(selector.TextSelectorConfig(multiline=True))
+BOOLEAN_SELECTOR = selector.BooleanSelector()
+
+
+def _number_selector(
+    *,
+    minimum: float,
+    maximum: float,
+    step: float,
+    coerce: type[float] | type[int] = float,
+) -> vol.All:
+    return vol.All(
+        selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=minimum,
+                max=maximum,
+                step=step,
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        ),
+        vol.Coerce(coerce),
+        vol.Range(min=minimum, max=maximum),
+    )
+
+
+def _boolean_selector() -> vol.All:
+    return vol.All(BOOLEAN_SELECTOR, vol.Boolean())
+
+
+def _text_selector(*, multiline: bool = False) -> vol.All:
+    base_selector = TEXTAREA_SELECTOR if multiline else TEXT_SELECTOR
+    return vol.All(base_selector, str)
+
+
+def _structured_selector(
+    native_type: type,
+    validator: Callable[[object], Mapping[str, object] | list[str] | dict[str, object]],
+) -> vol.Any:
+    return vol.Any(native_type, vol.All(TEXTAREA_SELECTOR, validator))
+
+
+GUARDRAIL_OPTION_FIELDS: tuple[tuple[str, str, float | int | bool, vol.Any], ...] = (
     (
         "float",
         OPT_CONFIDENCE_THRESHOLD,
         DEFAULT_CONFIDENCE_THRESHOLD,
-        vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        _number_selector(minimum=0.0, maximum=1.0, step=0.01),
     ),
     (
         "bool",
         OPT_NIGHT_MODE_ENABLED,
         DEFAULT_NIGHT_MODE_ENABLED,
-        vol.Boolean(),
+        _boolean_selector(),
     ),
     (
         "int",
         OPT_NIGHT_MODE_START_HOUR,
         DEFAULT_NIGHT_MODE_START_HOUR,
-        vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+        _number_selector(minimum=0, maximum=23, step=1, coerce=int),
     ),
     (
         "int",
         OPT_NIGHT_MODE_END_HOUR,
         DEFAULT_NIGHT_MODE_END_HOUR,
-        vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+        _number_selector(minimum=0, maximum=23, step=1, coerce=int),
     ),
     (
         "float",
         OPT_DEDUPLICATION_WINDOW,
         DEFAULT_DEDUPLICATION_WINDOW,
-        vol.All(vol.Coerce(float), vol.Range(min=0.0, max=30.0)),
+        _number_selector(minimum=0.0, maximum=30.0, step=0.1),
     ),
     (
         "bool",
         OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
         DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
-        vol.Boolean(),
+        _boolean_selector(),
     ),
     (
         "bool",
         OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
         DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED,
-        vol.Boolean(),
+        _boolean_selector(),
     ),
     (
         "float",
         OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
         DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
-        vol.All(vol.Coerce(float), vol.Range(min=1.0, max=3600.0)),
+        _number_selector(minimum=1.0, maximum=3600.0, step=1.0),
     ),
     (
         "float",
         OPT_MAX_LATENCY_MS,
         DEFAULT_MAX_LATENCY_MS,
-        vol.All(vol.Coerce(float), vol.Range(min=100.0, max=60000.0)),
+        _number_selector(minimum=100.0, maximum=60000.0, step=10.0),
     ),
     (
         "bool",
         OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
         DEFAULT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
-        vol.Boolean(),
+        _boolean_selector(),
     ),
 )
 
 GUARDRAIL_COMPLEX_OPTION_FIELDS: tuple[tuple[str, object, Any], ...] = (
-    (OPT_INTENT_THRESHOLDS, DEFAULT_INTENT_THRESHOLDS, _validate_intent_thresholds),
-    (OPT_DISABLED_INTENTS, list(DEFAULT_DISABLED_INTENTS), _coerce_string_list),
-    (OPT_DANGEROUS_INTENTS, list(DEFAULT_DANGEROUS_INTENTS), _coerce_string_list),
+    (
+        OPT_INTENT_THRESHOLDS,
+        DEFAULT_INTENT_THRESHOLDS,
+        _structured_selector(dict, _validate_intent_thresholds),
+    ),
+    (
+        OPT_DISABLED_INTENTS,
+        list(DEFAULT_DISABLED_INTENTS),
+        _structured_selector(list, _coerce_string_list),
+    ),
+    (
+        OPT_DANGEROUS_INTENTS,
+        list(DEFAULT_DANGEROUS_INTENTS),
+        _structured_selector(list, _coerce_string_list),
+    ),
     (
         OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
         list(DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES),
-        _coerce_string_list,
+        _structured_selector(list, _coerce_string_list),
     ),
-    (OPT_ALLOWED_HOURS, DEFAULT_ALLOWED_HOURS, _validate_allowed_hours),
+    (
+        OPT_ALLOWED_HOURS,
+        DEFAULT_ALLOWED_HOURS,
+        _structured_selector(dict, _validate_allowed_hours),
+    ),
     (
         OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
         DEFAULT_RECENT_COMMAND_WINDOW_OVERRIDES,
-        _validate_recent_windows,
+        _structured_selector(dict, _validate_recent_windows),
     ),
-    (OPT_VERIFIED_USERS, list(DEFAULT_VERIFIED_USERS), _coerce_string_list),
+    (
+        OPT_VERIFIED_USERS,
+        list(DEFAULT_VERIFIED_USERS),
+        _structured_selector(list, _coerce_string_list),
+    ),
 )
 
 INTENTS_OPTION_FIELD: tuple[str, object, Any] = (
     OPT_INTENTS_CONFIG,
     DEFAULT_INTENTS_CONFIG,
-    _validate_intents_config,
+    _structured_selector(dict, _validate_intents_config),
 )
 
 USER_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ADAPTER_URL): str,
-        vol.Required(CONF_QDRANT_HOST): str,
-        vol.Optional(CONF_QDRANT_API_KEY, default=""): str,
-        vol.Required(OPT_ADAPTER_SHARED_SECRET, default=""): str,
-        vol.Required(OPT_ENABLE_CATALOG_SYNC, default=DEFAULT_CATALOG_SYNC): vol.Boolean(),
+        vol.Required(CONF_ADAPTER_URL): _text_selector(),
+        vol.Required(CONF_QDRANT_HOST): _text_selector(),
+        vol.Optional(CONF_QDRANT_API_KEY, default=""): _text_selector(),
+        vol.Required(OPT_ADAPTER_SHARED_SECRET, default=""): _text_selector(),
+        vol.Required(OPT_ENABLE_CATALOG_SYNC, default=DEFAULT_CATALOG_SYNC): _boolean_selector(),
         vol.Required(
             OPT_ENABLE_CONFIDENCE_GATE,
             default=DEFAULT_CONFIDENCE_GATE,
-        ): vol.Boolean(),
+        ): _boolean_selector(),
         **{
             vol.Required(option_key, default=default): validator
             for _, option_key, default, validator in GUARDRAIL_OPTION_FIELDS
@@ -277,11 +340,11 @@ USER_SCHEMA = vol.Schema(
         vol.Required(
             OPT_REFRESH_INTERVAL_MINUTES,
             default=DEFAULT_REFRESH_INTERVAL_MINUTES,
-        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+        ): _number_selector(minimum=1, maximum=1440, step=1, coerce=int),
         vol.Required(
             OPT_ENABLE_PLEX_SYNC,
             default=DEFAULT_PLEX_SYNC,
-        ): vol.Boolean(),
+        ): _boolean_selector(),
         vol.Required(
             INTENTS_OPTION_FIELD[0],
             default=INTENTS_OPTION_FIELD[1],
@@ -377,25 +440,25 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             vol.Required(
                 OPT_ENABLE_CATALOG_SYNC,
                 default=self._bool_option(OPT_ENABLE_CATALOG_SYNC, DEFAULT_CATALOG_SYNC),
-            ): vol.Boolean(),
+            ): _boolean_selector(),
             vol.Required(
                 OPT_ENABLE_CONFIDENCE_GATE,
                 default=self._bool_option(OPT_ENABLE_CONFIDENCE_GATE, DEFAULT_CONFIDENCE_GATE),
-            ): vol.Boolean(),
+            ): _boolean_selector(),
             vol.Required(
                 OPT_REFRESH_INTERVAL_MINUTES,
                 default=self._int_option(
                     OPT_REFRESH_INTERVAL_MINUTES, DEFAULT_REFRESH_INTERVAL_MINUTES
                 ),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+            ): _number_selector(minimum=1, maximum=1440, step=1, coerce=int),
             vol.Required(
                 OPT_ENABLE_PLEX_SYNC,
                 default=self._bool_option(OPT_ENABLE_PLEX_SYNC, DEFAULT_PLEX_SYNC),
-            ): vol.Boolean(),
+            ): _boolean_selector(),
             vol.Required(
                 OPT_ADAPTER_SHARED_SECRET,
                 default=self._current_option(OPT_ADAPTER_SHARED_SECRET, ""),
-            ): str,
+            ): _text_selector(),
             vol.Required(
                 INTENTS_OPTION_FIELD[0],
                 default=self._current_complex_default(
