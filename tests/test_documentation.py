@@ -10,10 +10,12 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntryState
+import pytest
+
 from homeassistant.core import HomeAssistant
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ENTRY_STATE_SETUP_IN_PROGRESS = "SETUP_IN_PROGRESS"
 
 
 def _read_text(path: Path) -> str:
@@ -272,8 +274,12 @@ def test_release_notes_anchor_latest_version_history() -> None:
     )
 
 
-def test_documentation_suite_does_not_import_config_entry_symbol() -> None:
-    assert "ConfigEntry" not in _imported_symbols()
+@pytest.mark.parametrize(
+    "symbol",
+    ["ConfigEntry", "ConfigEntryState"],
+)
+def test_documentation_suite_does_not_import_config_entry_symbols(symbol: str) -> None:
+    assert symbol not in _imported_symbols()
 
 
 def test_documentation_test_module_is_ruff_formatted() -> None:
@@ -299,7 +305,7 @@ def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
             data={},
             add_update_listener=lambda callback: callback,
             async_on_unload=lambda _callback: None,
-            state=ConfigEntryState.SETUP_IN_PROGRESS,
+            state=ENTRY_STATE_SETUP_IN_PROGRESS,
         )
 
         def _update_entry(entry_to_update, *, options: dict[str, Any] | None = None) -> None:
