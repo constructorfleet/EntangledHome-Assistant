@@ -4,36 +4,30 @@
 entangledhome:
   intents_config:
     entangledhome.turn_on:
-      # Override how the adapter surfaces slot hints for this intent.
-      slot_hints:
+      # Provide optional slot hints that the adapter can promote to users.
+      enabled: true
+      slots:
         color:
           - warm
           - cool white
           - daylight
-      confidence_threshold: 0.72
-      recent_command_window: 1.5
-    entangledhome.set_light_color:
-      # Mark this as dangerous so the adapter requests verification tokens.
-      dangerous: true
-      required_secondary_signals:
-        - presence:person.alice
-        - voice:alice
-      allowed_hours:
-        start: 7
-        end: 22
+      threshold: 0.7
     entangledhome.open_garage:
-      dangerous: true
-      confidence_threshold: 0.85
-      allowed_hours:
-        start: 6
-        end: 21
-      required_secondary_signals:
-        - presence:person.bob
+      # Keep the adapter hint lightweight and configure the actual guardrails via the options UI.
+      enabled: true
+      threshold: 0.9
+      slots:
+        area:
+          - garage
+      # Guardrail options such as dangerous_intents, intent_thresholds, intent_allowed_hours,
+      # intent_recent_command_windows, and intent_secondary_signals live under the integration's
+      # options flow. List this intent in the Dangerous intents field and add secondary-signal
+      # requirements or after-hours blocks there.
     entangledhome.scene_activate:
-      # Provide adapter hints for synonyms and device targets.
-      slot_hints:
+      # Disable an intent without deleting it from the mapping.
+      enabled: false
+      slots:
         scene:
           - movie time
           - relax mode
-      targets:
-        domain: scene
+      threshold: 0.6
