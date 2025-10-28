@@ -290,7 +290,7 @@ USER_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlowHandler(config_entries.ConfigFlow):
+class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the initial configuration flow."""
 
     VERSION = 1
@@ -327,6 +327,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
     @callback
     def async_get_options_flow(config_entry) -> config_entries.ConfigFlow:
         return OptionsFlowHandler(config_entry)
+
+
+ConfigFlow = ConfigFlowHandler
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):

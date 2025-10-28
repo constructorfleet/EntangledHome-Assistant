@@ -22,6 +22,21 @@ LOCALIZATION_PATHS = [
 const = importlib.import_module("custom_components.entangledhome.const")
 config_flow_module = importlib.import_module("custom_components.entangledhome.config_flow")
 
+
+@pytest.fixture(autouse=True)
+def _ensure_event_loop() -> None:  # pragma: no cover - test infrastructure
+    """Ensure an event loop exists for Home Assistant plugin fixtures."""
+
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        yield
+    finally:
+        loop.run_until_complete(asyncio.sleep(0))
+        asyncio.set_event_loop(None)
+        loop.close()
+
+
 USER_SCHEMA_FIELDS = {
     const.CONF_ADAPTER_URL,
     const.CONF_QDRANT_HOST,
@@ -73,6 +88,13 @@ GUARDRAIL_DESCRIPTION_FIELDS = {
     const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
 }
 
+SECONDARY_DISABLED_OVERRIDES = {
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: False,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: [],
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED: False,
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 30.0,
+}
+
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -96,6 +118,18 @@ def _build_user_input(**overrides: object) -> dict[str, object]:
     )
     base.update(overrides)
     return base
+
+
+def _config_flow_alias() -> type:
+    assert hasattr(config_flow_module, "ConfigFlow"), "ConfigFlow alias should be exported"
+    return getattr(config_flow_module, "ConfigFlow")
+
+
+async def _async_run_user_step(**overrides: object) -> dict[str, object]:
+    """Run the config flow user step for the provided overrides."""
+
+    flow = config_flow_module.ConfigFlow()
+    return await flow.async_step_user(_build_user_input(**overrides))
 
 
 @pytest.mark.parametrize("path", LOCALIZATION_PATHS)
@@ -144,9 +178,7 @@ def test_user_flow_populates_secondary_signal_options() -> None:
     )
 
     async def _run_flow() -> object:
-        flow = config_flow_module.ConfigFlowHandler()
-        result = await flow.async_step_user(user_input)
-        return result
+        return await _async_run_user_step(**user_input)
 
     result = asyncio.run(_run_flow())
     assert not inspect.isawaitable(result)
@@ -159,3 +191,37 @@ def test_user_flow_populates_secondary_signal_options() -> None:
     ]
     assert options[const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is True
     assert options[const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS] == 45.0
+
+
+def test_async_step_user_creates_entry() -> None:
+    """The config flow should return a create_entry result."""
+
+    user_input = _build_user_input(**SECONDARY_DISABLED_OVERRIDES)
+    result = asyncio.run(_async_run_user_step(**SECONDARY_DISABLED_OVERRIDES))
+
+    assert result["type"] == "create_entry"
+    assert result["data"][const.CONF_ADAPTER_URL] == user_input[const.CONF_ADAPTER_URL]
+
+
+def test_async_step_user_returns_sync_flow_result() -> None:
+    """Flow results should be realized dictionaries, not bare coroutines."""
+
+    result = asyncio.run(_async_run_user_step(**SECONDARY_DISABLED_OVERRIDES))
+
+    assert not inspect.isawaitable(result)
+    assert isinstance(result, dict)
+    assert result["type"] == "create_entry"
+
+
+def test_config_flow_module_exports_configflow_alias() -> None:
+    """Home Assistant expects the module to export ConfigFlow."""
+
+    assert _config_flow_alias() is config_flow_module.ConfigFlowHandler, (
+        "ConfigFlow should reference ConfigFlowHandler"
+    )
+
+
+def test_config_flow_alias_exposes_domain_constant() -> None:
+    """The ConfigFlow alias should expose the integration domain."""
+
+    assert _config_flow_alias().domain == const.DOMAIN
