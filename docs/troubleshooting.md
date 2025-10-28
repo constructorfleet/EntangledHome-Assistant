@@ -8,6 +8,10 @@ service, and Qdrant pipeline.
   Home Assistant container. Review `home-assistant.log` for configuration validation errors.
 - **Options flow rejects JSON** &ndash; Validate that the `Intent routing configuration` JSON is a mapping
   of intent IDs to objects. Quotes around keys and trailing commas are the usual culprits.
+- **Dangerous intent blocked unexpectedly** &ndash; When **Require verified user for dangerous intents**
+  is enabled, ensure the adapter returns a `verified_user` value present in the **Verified users**
+  list. The comparison is case-insensitive and trims whitespace; update the adapter or allow list
+  if names drift.
 
 ## Adapter connectivity
 - Run `uv run python scripts/ingest_entities.py --dry-run` to verify credentials without mutating

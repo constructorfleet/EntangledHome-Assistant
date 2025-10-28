@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
-import sys
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Any, Mapping, Sequence
 
 from homeassistant.core import HomeAssistant

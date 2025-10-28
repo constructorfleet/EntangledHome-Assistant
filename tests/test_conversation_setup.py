@@ -12,16 +12,15 @@ from custom_components.entangledhome.const import (
     CONF_ADAPTER_URL,
     CONF_QDRANT_API_KEY,
     CONF_QDRANT_HOST,
+    DEFAULT_INTENTS_CONFIG,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_INTENTS_CONFIG,
-    DEFAULT_INTENTS_CONFIG,
 )
 from custom_components.entangledhome.models import CatalogPayload, InterpretResponse
 from custom_components.entangledhome.telemetry import TelemetryRecorder
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-
 
 pytestmark = pytest.mark.asyncio
 

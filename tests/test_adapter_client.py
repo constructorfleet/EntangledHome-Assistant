@@ -6,7 +6,6 @@ from typing import Any
 
 import httpx
 import pytest
-
 from httpx import Timeout
 
 from custom_components.entangledhome.adapter_client import (
@@ -14,7 +13,6 @@ from custom_components.entangledhome.adapter_client import (
     AdapterClientError,
 )
 from custom_components.entangledhome.models import CatalogPayload
-
 
 pytestmark = pytest.mark.asyncio
 

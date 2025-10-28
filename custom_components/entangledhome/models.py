@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 __all__ = [
     "CatalogArea",
     "CatalogEntity",
@@ -103,3 +102,4 @@ class InterpretResponse(BaseModel):
     required_secondary_signals: list[str] = Field(default_factory=list)
     qdrant_terms: list[str] = Field(default_factory=list)
     adapter_error: str | None = None
+    verified_user: str | None = None

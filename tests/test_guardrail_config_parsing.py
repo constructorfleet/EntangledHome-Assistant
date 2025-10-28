@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-from custom_components.entangledhome.conversation import GuardrailBundle
 from custom_components.entangledhome.const import (
     OPT_ALLOWED_HOURS,
     OPT_DANGEROUS_INTENTS,
@@ -12,6 +11,7 @@ from custom_components.entangledhome.const import (
     OPT_INTENT_THRESHOLDS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
 )
+from custom_components.entangledhome.conversation import GuardrailBundle
 
 
 def test_guardrail_bundle_parses_json_strings() -> None:

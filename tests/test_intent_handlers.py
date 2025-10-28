@@ -23,7 +23,6 @@ from custom_components.entangledhome.models import (
 )
 from homeassistant.core import HomeAssistant
 
-
 pytestmark = pytest.mark.asyncio
 
 

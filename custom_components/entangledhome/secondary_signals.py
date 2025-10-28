@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable
 from typing import Any, Mapping
-import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from collections import OrderedDict
 from difflib import SequenceMatcher
-import re
 from typing import Any, Awaitable, Callable, Iterable, Mapping, Sequence
 
 from homeassistant.core import HomeAssistant

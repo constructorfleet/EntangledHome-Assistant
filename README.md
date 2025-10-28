@@ -150,6 +150,9 @@ Additional safeguards:
   response signature documented in the adapter README.
 - Sensitive intent double-confirmation: downstream automations can prompt users for follow-up
   confirmations before executing irreversible actions.
+- Verified user enforcement: enable **Require verified user for dangerous intents** and populate the
+  **Verified users** allow list (comma separated or JSON array). The adapter must return a
+  `verified_user` value that matches one of the configured names before dangerous intents execute.
 
 ## Guardrail thresholds and dangerous intents
 
@@ -160,6 +163,8 @@ Guardrail metadata can be edited globally or per intent:
 - **Dangerous intents** &ndash; list intent IDs in the **Dangerous intents** field or mark
   `dangerous: true` inside the intents mapping. Dangerous intents require secondary signals and
   can be constrained to allowed hours.
+- **Require verified user for dangerous intents** &ndash; when enabled, the integration cross-checks the
+  adapter’s `verified_user` field against the **Verified users** allow list before executing.
 - **Allowed hours** &ndash; configure daily windows that suppress execution outside business hours.
 - **Recent command window overrides** &ndash; widen or shrink the deduplication window for intents
   that should never double-fire.

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from datetime import datetime, timezone
-import logging
 from typing import Any, Callable, Iterator, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field

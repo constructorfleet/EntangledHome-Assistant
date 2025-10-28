@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
 import hashlib
 import inspect
 import json
 import logging
-from typing import Any, Awaitable, Callable, Iterable, Mapping
 import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Awaitable, Callable, Iterable, Mapping
 
 from homeassistant.components import conversation as conversation_domain
 from homeassistant.config_entries import ConfigEntry
@@ -29,22 +29,23 @@ from .const import (
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_ALLOWED_HOURS,
-    OPT_DANGEROUS_INTENTS,
-    OPT_DISABLED_INTENTS,
-    OPT_INTENT_THRESHOLDS,
-    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_CONFIDENCE_THRESHOLD,
+    OPT_DANGEROUS_INTENTS,
     OPT_DEDUPLICATION_WINDOW,
+    OPT_DISABLED_INTENTS,
     OPT_ENABLE_CONFIDENCE_GATE,
+    OPT_INTENT_THRESHOLDS,
     OPT_MAX_LATENCY_MS,
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
+    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+    OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
+    OPT_VERIFIED_USERS,
 )
 from .intent_handlers import IntentHandlingError, async_execute_intent
 from .models import CatalogPayload, InterpretResponse
 from .telemetry import TelemetryRecorder
-
 
 CatalogProvider = Callable[[], CatalogPayload | Awaitable[CatalogPayload]]
 
@@ -62,6 +63,8 @@ class GuardrailBundle:
     allowed_hours: dict[str, tuple[int, int]] = field(default_factory=dict)
     recent_command_windows: dict[str, float] = field(default_factory=dict)
     max_latency_ms: float | None = DEFAULT_MAX_LATENCY_MS
+    require_verified_user_for_dangerous: bool = False
+    verified_users: set[str] = field(default_factory=set)
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | "GuardrailBundle" | None) -> "GuardrailBundle":
@@ -113,6 +116,9 @@ class GuardrailBundle:
         if parsed_latency is not None:
             latency_budget = parsed_latency
 
+        require_verified = cls._coerce_bool(mapping.get(OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS))
+        verified_users = cls._coerce_verified_users(mapping.get(OPT_VERIFIED_USERS, ()))
+
         return cls(
             intent_thresholds=thresholds,
             disabled_intents=disabled,
@@ -120,6 +126,8 @@ class GuardrailBundle:
             allowed_hours=allowed,
             recent_command_windows=windows,
             max_latency_ms=latency_budget,
+            require_verified_user_for_dangerous=require_verified,
+            verified_users=verified_users,
         )
 
     def threshold_for(self, intent: str) -> float | None:
@@ -150,6 +158,10 @@ class GuardrailBundle:
             config["allowed_hours"] = hours
         if self.is_dangerous(intent):
             config["dangerous"] = True
+            if self.require_verified_user_for_dangerous:
+                config["require_verified_user"] = True
+                if self.verified_users:
+                    config["verified_users"] = sorted(self.verified_users)
         if self.is_disabled(intent):
             config["disabled"] = True
         return config
@@ -167,6 +179,17 @@ class GuardrailBundle:
         if isinstance(value, (list, tuple, set)):
             return {str(item).strip() for item in value if str(item).strip()}
         return set()
+
+    @staticmethod
+    def _coerce_bool(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in TRUTHY_STRINGS
+        return bool(value)
+
+    @staticmethod
+    def _coerce_verified_users(value: Any) -> set[str]:
+        users = GuardrailBundle._coerce_str_set(value)
+        return {user.lower() for user in users if user}
 
     @staticmethod
     def _coerce_hours(value: Any) -> tuple[int, int] | None:
@@ -286,6 +309,9 @@ class EntangledHomeConversationHandler:
         dedupe_window = intent_config.get("recent_command_window")
         allowed_hours = intent_config.get("allowed_hours")
         is_dangerous = bool(intent_config.get("dangerous"))
+        verified_user = getattr(response, "verified_user", None)
+        allowed_verified_users = sorted(guardrails.verified_users)
+        normalized_verified_user = str(verified_user or "").strip().lower()
         if dedupe_window is None:
             dedupe_window = float(
                 options.get(OPT_DEDUPLICATION_WINDOW, DEFAULT_DEDUPLICATION_WINDOW)
@@ -364,6 +390,22 @@ class EntangledHomeConversationHandler:
                     message="Additional verification required before executing this intent.",
                     reason="dangerous_intent_missing_verification",
                 )
+            if guardrails.require_verified_user_for_dangerous:
+                if (
+                    not normalized_verified_user
+                    or normalized_verified_user not in guardrails.verified_users
+                ):
+                    return self._guardrail_block(
+                        utterance=utterance,
+                        response=response,
+                        message="Verified user required before executing this intent.",
+                        reason="dangerous_intent_unverified_user",
+                        detail={
+                            "allowed_verified_users": allowed_verified_users,
+                            "verified_user": verified_user,
+                            "require_verified_user": True,
+                        },
+                    )
 
         try:
             result = self._intent_executor(
@@ -434,6 +476,12 @@ class EntangledHomeConversationHandler:
             execution_detail["allowed_hours"] = list(allowed_hours)
         if is_dangerous:
             execution_detail["dangerous"] = True
+            if guardrails.require_verified_user_for_dangerous:
+                execution_detail["require_verified_user"] = True
+                if guardrails.verified_users:
+                    execution_detail["allowed_verified_users"] = allowed_verified_users
+                if verified_user:
+                    execution_detail["verified_user"] = verified_user
         if telemetry_flags:
             execution_detail["flags"] = list(telemetry_flags)
 
@@ -627,6 +675,9 @@ class EntangledHomeConversationHandler:
         return current >= start or current < end
 
     def _has_verification_flags(self, response: InterpretResponse) -> bool:
+        verified_user = getattr(response, "verified_user", None)
+        if isinstance(verified_user, str) and verified_user.strip():
+            return True
         params = getattr(response, "params", {}) or {}
         if isinstance(params, Mapping):
             flags = params.get("verification_flags")
