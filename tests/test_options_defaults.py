@@ -2,10 +2,34 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+
+
+class _StubAsyncClient:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover - helper
+        return
+
+    async def __aenter__(self) -> "_StubAsyncClient":  # pragma: no cover - helper
+        return self
+
+    async def __aexit__(self, *exc: Any) -> None:  # pragma: no cover - helper
+        return None
+
+
+class _HttpxStub(types.SimpleNamespace):
+    AsyncClient = _StubAsyncClient
+    Timeout = types.SimpleNamespace
+    HTTPError = Exception
+    HTTPStatusError = Exception
+    codes = types.SimpleNamespace(UNAUTHORIZED=401)
+
+
+sys.modules.setdefault("httpx", _HttpxStub())
 
 
 def _override_update_entry(
@@ -193,3 +217,26 @@ def test_ensure_default_options_preserves_existing_values() -> None:
     assert entry.options[OPT_ENABLE_PLEX_SYNC] is False
     assert entry.options[OPT_CONFIDENCE_THRESHOLD] == 0.42
     assert entry.options[OPT_NIGHT_MODE_ENABLED] is True
+
+
+def test_ensure_default_options_clones_intents_config_defaults() -> None:
+    """Mutating seeded intents config should not affect module defaults."""
+
+    from custom_components.entangledhome import _ensure_default_options
+    from custom_components.entangledhome.const import (
+        DEFAULT_INTENTS_CONFIG,
+        OPT_INTENTS_CONFIG,
+    )
+
+    hass = HomeAssistant()
+
+    entry = ConfigEntry(entry_id="clone-intents", options={})
+
+    original_slots = list(DEFAULT_INTENTS_CONFIG["turn_on"]["slots"])
+
+    _ensure_default_options(hass, entry)
+
+    seeded_slots = entry.options[OPT_INTENTS_CONFIG]["turn_on"]["slots"]
+    seeded_slots.append("new_slot")
+
+    assert DEFAULT_INTENTS_CONFIG["turn_on"]["slots"] == original_slots
