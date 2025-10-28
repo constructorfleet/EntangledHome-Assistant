@@ -21,6 +21,8 @@ DEPENDENCY_PIN_MARKERS = ("==", ">=", "<=", "~=", "!=")
 REQUIREMENTS_TEST_FILE = REPO_ROOT / "requirements-test.txt"
 LOCKFILE = REPO_ROOT / "uv.lock"
 LOCK_PACKAGES = {"fastapi", "uvicorn"}
+RELEASE_WORKFLOW_FILE = REPO_ROOT / ".github" / "workflows" / "release.yml"
+RELEASE_WORKFLOW_PYTHON_VERSION = "3.13"
 REQUIRED_PYTHON_SPEC = ">=3.13,<3.14"
 EXPECTED_HACS_METADATA = {
     "name": "EntangledHome - Assistant",
@@ -68,6 +70,10 @@ def _load_pyproject() -> dict[str, Any]:
 def _load_dev_dependency_group() -> set[str]:
     pyproject = _load_pyproject()
     return {_normalize_requirement(item) for item in pyproject["dependency-groups"]["dev"]}
+
+
+def _load_release_workflow_text() -> str:
+    return RELEASE_WORKFLOW_FILE.read_text()
 
 
 def test_dev_dependency_groups_cover_test_stack() -> None:
@@ -127,6 +133,18 @@ def test_pyproject_requires_python_313() -> None:
     requires_python = pyproject["project"]["requires-python"]
     assert requires_python == REQUIRED_PYTHON_SPEC, (
         "pyproject.toml must pin Python compatibility to >=3.13,<3.14 for release pipeline"
+    )
+
+
+def test_release_workflow_targets_python_313() -> None:
+    """Release workflow should install dependencies under Python 3.13."""
+
+    assert RELEASE_WORKFLOW_FILE.exists(), "release workflow file must exist"
+
+    workflow_text = _load_release_workflow_text()
+    expected_snippet = f'python-version: "{RELEASE_WORKFLOW_PYTHON_VERSION}"'
+    assert expected_snippet in workflow_text, (
+        "release workflow should use python-version '3.13' to match project metadata"
     )
 
 
