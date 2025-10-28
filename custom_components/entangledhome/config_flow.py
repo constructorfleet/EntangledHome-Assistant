@@ -290,7 +290,7 @@ USER_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlowHandler(config_entries.ConfigFlow):
+class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the initial configuration flow."""
 
     VERSION = 1
@@ -468,5 +468,3 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return value
 
 
-# Home Assistant expects ConfigFlow symbol at module level.
-ConfigFlow = ConfigFlowHandler
