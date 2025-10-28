@@ -7,6 +7,7 @@ import importlib
 import inspect
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -56,6 +57,33 @@ USER_SCHEMA_FIELDS = {
     const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
     const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     const.OPT_INTENTS_CONFIG,
+}
+
+SELECTOR_EXPECTATIONS = {
+    const.CONF_ADAPTER_URL: "TextSelector",
+    const.CONF_QDRANT_HOST: "TextSelector",
+    const.CONF_QDRANT_API_KEY: "TextSelector",
+    const.OPT_ADAPTER_SHARED_SECRET: "TextSelector",
+    const.OPT_ENABLE_CATALOG_SYNC: "BooleanSelector",
+    const.OPT_ENABLE_CONFIDENCE_GATE: "BooleanSelector",
+    const.OPT_CONFIDENCE_THRESHOLD: "NumberSelector",
+    const.OPT_NIGHT_MODE_ENABLED: "BooleanSelector",
+    const.OPT_NIGHT_MODE_START_HOUR: "NumberSelector",
+    const.OPT_NIGHT_MODE_END_HOUR: "NumberSelector",
+    const.OPT_DEDUPLICATION_WINDOW: "NumberSelector",
+    const.OPT_REFRESH_INTERVAL_MINUTES: "NumberSelector",
+    const.OPT_ENABLE_PLEX_SYNC: "BooleanSelector",
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: "BooleanSelector",
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: "TextSelector",
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED: "BooleanSelector",
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: "NumberSelector",
+    const.OPT_ALLOWED_HOURS: "TextSelector",
+    const.OPT_RECENT_COMMAND_WINDOW_OVERRIDES: "TextSelector",
+    const.OPT_VERIFIED_USERS: "TextSelector",
+    const.OPT_DANGEROUS_INTENTS: "TextSelector",
+    const.OPT_DISABLED_INTENTS: "TextSelector",
+    const.OPT_INTENT_THRESHOLDS: "TextSelector",
+    const.OPT_INTENTS_CONFIG: "TextSelector",
 }
 
 OPTIONS_SCHEMA_FIELDS = {
@@ -123,6 +151,27 @@ def _build_user_input(**overrides: object) -> dict[str, object]:
 def _config_flow_alias() -> type:
     assert hasattr(config_flow_module, "ConfigFlow"), "ConfigFlow alias should be exported"
     return getattr(config_flow_module, "ConfigFlow")
+
+
+def _extract_validator(schema: object, field: str):
+    mapping = getattr(schema, "schema", {})
+    for key, validator in mapping.items():
+        key_name = getattr(key, "schema", key)
+        if key_name == field:
+            return validator
+    raise AssertionError(f"Field {field} not found in schema")
+
+
+def _selector_name(validator: object) -> str | None:
+    name = getattr(getattr(validator, "__class__", None), "__name__", "")
+    if name.endswith("Selector"):
+        return name
+    inner_validators = getattr(validator, "validators", [])
+    for inner in inner_validators:
+        inner_name = _selector_name(inner)
+        if inner_name:
+            return inner_name
+    return None
 
 
 async def _async_run_user_step(**overrides: object) -> dict[str, object]:
@@ -225,3 +274,35 @@ def test_config_flow_alias_exposes_domain_constant() -> None:
     """The ConfigFlow alias should expose the integration domain."""
 
     assert _config_flow_alias().domain == const.DOMAIN
+
+
+def test_user_schema_fields_use_selectors() -> None:
+    """User form controls should leverage Home Assistant selectors."""
+
+    schema = config_flow_module.USER_SCHEMA
+    for field, expected in SELECTOR_EXPECTATIONS.items():
+        selector_name = _selector_name(_extract_validator(schema, field))
+        assert selector_name == expected, f"Expected {field} to use {expected}, got {selector_name}"
+
+
+def test_options_schema_fields_use_selectors() -> None:
+    """Options flow schema should also rely on selectors for UI rendering."""
+
+    entry = SimpleNamespace(options={})
+
+    async def _build_schema() -> object:
+        flow = config_flow_module.OptionsFlowHandler(entry)
+        form = await flow.async_step_init()
+        return form["data_schema"]
+
+    schema = asyncio.run(_build_schema())
+
+    option_expectations = {
+        field: SELECTOR_EXPECTATIONS[field]
+        for field in OPTIONS_SCHEMA_FIELDS
+        if field in SELECTOR_EXPECTATIONS
+    }
+
+    for field, expected in option_expectations.items():
+        selector_name = _selector_name(_extract_validator(schema, field))
+        assert selector_name == expected, f"Expected {field} to use {expected}, got {selector_name}"
