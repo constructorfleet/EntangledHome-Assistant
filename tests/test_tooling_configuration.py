@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
-import tomllib
+from sitecustomize import PYTEST_AUTOLOAD_ENV_VAR
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_TEST_PACKAGES = {
@@ -94,6 +96,15 @@ def test_tooling_configuration_module_is_ruff_formatted() -> None:
     """The tooling tests should remain formatted according to Ruff."""
 
     _assert_ruff_format_clean(TOOLING_TEST_FILE)
+
+
+def test_pytest_disables_plugin_autoload() -> None:
+    """pytest should disable third-party plugin auto-loading to avoid import crashes."""
+
+    flag_value = os.environ.get(PYTEST_AUTOLOAD_ENV_VAR)
+    assert flag_value == "1", (
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD must be set to '1' to prevent third-party plugin crashes"
+    )
 
 
 def test_dev_dependency_groups_cover_test_stack() -> None:

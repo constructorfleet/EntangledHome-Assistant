@@ -28,7 +28,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["custom_components*"]
+include = ["custom_components*", "sitecustomize"]
 
 [dependency-groups]
 dev = [
