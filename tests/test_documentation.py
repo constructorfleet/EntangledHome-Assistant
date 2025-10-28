@@ -9,7 +9,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +76,10 @@ def _build_test_hass(tmp_path: Path) -> HomeAssistant:
         frame.report_usage = lambda *args, **kwargs: None  # type: ignore[attr-defined]
 
     return hass
+
+
+def _imported_symbols() -> set[str]:
+    return set(globals())
 
 
 def test_readme_and_adapter_docs_cover_required_sections() -> None:
@@ -258,6 +262,10 @@ def test_release_notes_anchor_latest_version_history() -> None:
             "docs/releases/v0.5.0.md",
         ],
     )
+
+
+def test_documentation_suite_does_not_import_config_entry_symbol() -> None:
+    assert "ConfigEntry" not in _imported_symbols()
 
 
 def test_sentence_override_wins_on_reload(tmp_path: Path) -> None:
