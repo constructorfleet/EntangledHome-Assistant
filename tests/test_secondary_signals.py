@@ -110,3 +110,26 @@ def test_voice_signal_omits_expired_entries() -> None:
     )
 
     assert set(provider()) == set()
+
+
+def test_voice_signal_requires_enabled_toggle() -> None:
+    """Voice identifiers should be ignored when the toggle is disabled."""
+
+    hass = _make_hass({})
+    entry = _make_entry({})
+
+    from custom_components.entangledhome import secondary_signals
+
+    secondary_signals.record_voice_identifier(
+        hass,
+        entry.entry_id,
+        "alice",
+        timestamp=0.0,
+    )
+    provider = secondary_signals.build_secondary_signal_provider(
+        hass,
+        entry,
+        time_source=lambda: 10.0,
+    )
+
+    assert set(provider()) == set()

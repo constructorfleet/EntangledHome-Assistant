@@ -321,7 +321,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
             options[option_key] = user_input[option_key]
 
-        return self.async_create_entry(title=TITLE, data=data, options=options)
+        return await self.async_create_entry(title=TITLE, data=data, options=options)
 
     @staticmethod
     @callback
@@ -365,7 +365,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> OptionsFlowResult:
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            return await self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(step_id="init", data_schema=self._options_schema())
 

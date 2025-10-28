@@ -113,12 +113,20 @@ def test_options_flow_uses_existing_values() -> None:
     from custom_components.entangledhome.const import (
         OPT_ENABLE_PLEX_SYNC,
         OPT_REFRESH_INTERVAL_MINUTES,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED,
+        OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES,
+        OPT_SECONDARY_SIGNAL_VOICE_ENABLED,
+        OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
     )
 
     entry = SimpleNamespace(
         options={
             OPT_REFRESH_INTERVAL_MINUTES: 12,
             OPT_ENABLE_PLEX_SYNC: False,
+            OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: True,
+            OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: ["person.charlie"],
+            OPT_SECONDARY_SIGNAL_VOICE_ENABLED: True,
+            OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 90.0,
         }
     )
 
@@ -129,5 +137,9 @@ def test_options_flow_uses_existing_values() -> None:
 
         assert defaults[OPT_REFRESH_INTERVAL_MINUTES] == 12
         assert defaults[OPT_ENABLE_PLEX_SYNC] is False
+        assert defaults[OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED] is True
+        assert defaults[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES] == ["person.charlie"]
+        assert defaults[OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is True
+        assert defaults[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS] == 90.0
 
     asyncio.run(_run())
