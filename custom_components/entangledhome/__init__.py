@@ -116,9 +116,20 @@ def _ensure_default_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     options: dict[str, Any] = dict(entry.options)
     updated = False
 
+    def _clone_default(value: Any) -> Any:
+        if isinstance(value, dict):
+            return dict(value)
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, set):
+            return set(value)
+        if isinstance(value, tuple):
+            return list(value)
+        return value
+
     for option_key, default_value in DEFAULT_OPTION_VALUES:
         if option_key not in options:
-            options[option_key] = default_value
+            options[option_key] = _clone_default(default_value)
             updated = True
 
     if updated:

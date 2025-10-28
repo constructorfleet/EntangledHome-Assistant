@@ -66,6 +66,22 @@ def test_ensure_default_options_populates_guardrail_defaults() -> None:
     assert entry.options[OPT_NIGHT_MODE_END_HOUR] == DEFAULT_NIGHT_MODE_END_HOUR
     assert entry.options[OPT_DEDUPLICATION_WINDOW] == DEFAULT_DEDUPLICATION_WINDOW
     assert entry.options[OPT_ADAPTER_SHARED_SECRET] == ""
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED]
+        is DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENABLED
+    )
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES]
+        == list(DEFAULT_SECONDARY_SIGNAL_PRESENCE_ENTITIES)
+    )
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_VOICE_ENABLED]
+        is DEFAULT_SECONDARY_SIGNAL_VOICE_ENABLED
+    )
+    assert (
+        entry.options[OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS]
+        == DEFAULT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS
+    )
 
 
 def test_ensure_default_options_populates_refresh_and_plex_defaults() -> None:
