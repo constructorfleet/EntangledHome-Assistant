@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import voluptuous as vol
 
@@ -290,11 +290,10 @@ USER_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlowHandler(config_entries.ConfigFlow):
+class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the initial configuration flow."""
 
     VERSION = 1
-    domain = DOMAIN
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Display the user form and create the entry."""
@@ -327,6 +326,9 @@ class ConfigFlowHandler(config_entries.ConfigFlow):
     @callback
     def async_get_options_flow(config_entry) -> config_entries.ConfigFlow:
         return OptionsFlowHandler(config_entry)
+
+
+ConfigFlowHandler.domain = cast(str, ConfigFlowHandler.DOMAIN)
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):

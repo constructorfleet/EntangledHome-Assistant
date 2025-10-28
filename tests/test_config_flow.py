@@ -159,3 +159,9 @@ def test_user_flow_populates_secondary_signal_options() -> None:
     ]
     assert options[const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED] is True
     assert options[const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS] == 45.0
+
+
+def test_config_flow_registers_domain_with_base_class() -> None:
+    """Config flow should register the integration domain with the HA base class."""
+
+    assert config_flow_module.ConfigFlowHandler.DOMAIN == const.DOMAIN
