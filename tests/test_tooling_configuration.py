@@ -6,7 +6,6 @@ import json
 import tomllib
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_TEST_PACKAGES = {
     "pytest",

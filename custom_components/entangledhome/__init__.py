@@ -13,28 +13,27 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Mapping, S
 
 import httpx
 
-# Re-export embeddings module so patching helpers can resolve dotted paths.
-from . import embeddings as embeddings  # noqa: F401
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+# Re-export embeddings module so patching helpers can resolve dotted paths.
+from . import embeddings as embeddings  # noqa: F401
 from .const import (
     CONF_ADAPTER_URL,
     DATA_TELEMETRY,
-    DEFAULT_OPTION_VALUES,
     DEFAULT_INTENTS_CONFIG,
     DEFAULT_MAX_LATENCY_MS,
+    DEFAULT_OPTION_VALUES,
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_ALLOWED_HOURS,
     OPT_DANGEROUS_INTENTS,
     OPT_DISABLED_INTENTS,
-    OPT_INTENTS_CONFIG,
     OPT_INTENT_THRESHOLDS,
+    OPT_INTENTS_CONFIG,
     OPT_MAX_LATENCY_MS,
-    OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
+    OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     OPT_VERIFIED_USERS,
 )
 

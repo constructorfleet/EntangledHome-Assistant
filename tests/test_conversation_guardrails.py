@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import sys
 from collections import deque
 from datetime import datetime
 from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
-import sys
 
 if "httpx" not in sys.modules:  # pragma: no cover - executed in test environment
 
@@ -41,9 +41,9 @@ if "jsonschema" not in sys.modules:  # pragma: no cover - executed in test envir
     jsonschema_stub.validate = _noop_validate
     sys.modules["jsonschema"] = jsonschema_stub
 
-import pytest
-
 import logging
+
+import pytest
 
 from custom_components.entangledhome import const as eh_const
 from custom_components.entangledhome.conversation import (
@@ -55,7 +55,6 @@ from custom_components.entangledhome.models import CatalogPayload, InterpretResp
 from custom_components.entangledhome.telemetry import TelemetryEvent, TelemetryRecorder
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-
 
 pytestmark = pytest.mark.asyncio
 

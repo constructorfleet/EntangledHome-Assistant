@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from .schema import InterpretResponse
 
-
 Requester = Callable[[dict[str, Any]], AsyncIterator[str]]
 Repairer = Callable[[dict[str, Any]], Awaitable[InterpretResponse | dict[str, Any] | None]]
 

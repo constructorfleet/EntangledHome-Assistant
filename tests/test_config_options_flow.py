@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import asyncio
+from types import SimpleNamespace
 
 
 def test_options_flow_provides_refresh_and_plex_defaults() -> None:
@@ -12,9 +11,9 @@ def test_options_flow_provides_refresh_and_plex_defaults() -> None:
 
     from custom_components.entangledhome.config_flow import OptionsFlowHandler
     from custom_components.entangledhome.const import (
+        DEFAULT_INTENTS_CONFIG,
         DEFAULT_PLEX_SYNC,
         DEFAULT_REFRESH_INTERVAL_MINUTES,
-        DEFAULT_INTENTS_CONFIG,
         OPT_ENABLE_PLEX_SYNC,
         OPT_INTENTS_CONFIG,
         OPT_REFRESH_INTERVAL_MINUTES,

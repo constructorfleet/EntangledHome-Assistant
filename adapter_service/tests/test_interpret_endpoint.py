@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from adapter_service.schema import InterpretResponse
 
-
 SHARED_SECRET = "test-shared-secret"
 
 
@@ -132,9 +131,8 @@ def _post_with_signature(client: TestClient, payload: dict, secret: str):
 def test_interpret_endpoint_returns_valid_response(monkeypatch, qdrant_payloads):
     import importlib
 
-    from adapter_service.schema import InterpretRequest
-
     import adapter_service.main as main
+    from adapter_service.schema import InterpretRequest
 
     importlib.reload(main)
 
@@ -352,9 +350,8 @@ def test_interpret_streaming_cache_and_metrics(monkeypatch, qdrant_payloads):
 def test_interpret_cache_key_includes_catalog_fingerprint(monkeypatch):
     import importlib
 
-    from adapter_service.schema import InterpretRequest
-
     import adapter_service.main as main
+    from adapter_service.schema import InterpretRequest
 
     importlib.reload(main)
 

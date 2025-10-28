@@ -101,14 +101,13 @@ def test_coordinator_invokes_exporter_when_sync_enabled() -> None:
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, patch
 
-    from homeassistant.core import HomeAssistant
-
-    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
     from custom_components.entangledhome.const import (
         OPT_ENABLE_CATALOG_SYNC,
         OPT_ENABLE_PLEX_SYNC,
         OPT_REFRESH_INTERVAL_MINUTES,
     )
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from homeassistant.core import HomeAssistant
 
     hass = HomeAssistant()
     options = {
@@ -142,10 +141,9 @@ def test_coordinator_skips_export_when_sync_disabled() -> None:
     from types import SimpleNamespace
     from unittest.mock import patch
 
-    from homeassistant.core import HomeAssistant
-
-    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
     from custom_components.entangledhome.const import OPT_ENABLE_CATALOG_SYNC
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from homeassistant.core import HomeAssistant
 
     hass = HomeAssistant()
     entry = SimpleNamespace(options={OPT_ENABLE_CATALOG_SYNC: False})
@@ -175,10 +173,9 @@ def test_coordinator_embed_texts_uses_entry_provider() -> None:
 
     from types import SimpleNamespace
 
-    from homeassistant.core import HomeAssistant
-
-    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
     from custom_components.entangledhome.const import DOMAIN
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from homeassistant.core import HomeAssistant
 
     hass = HomeAssistant()
     entry = SimpleNamespace(options={}, entry_id="entry-1")
@@ -202,10 +199,9 @@ def test_coordinator_upsert_points_uses_entry_provider() -> None:
 
     from types import SimpleNamespace
 
-    from homeassistant.core import HomeAssistant
-
-    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
     from custom_components.entangledhome.const import DOMAIN
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from homeassistant.core import HomeAssistant
 
     hass = HomeAssistant()
     entry = SimpleNamespace(options={}, entry_id="entry-2")
@@ -230,10 +226,9 @@ def test_coordinator_collect_plex_media_uses_entry_client() -> None:
 
     from types import SimpleNamespace
 
-    from homeassistant.core import HomeAssistant
-
-    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
     from custom_components.entangledhome.const import DOMAIN
+    from custom_components.entangledhome.coordinator import EntangledHomeCoordinator
+    from homeassistant.core import HomeAssistant
 
     hass = HomeAssistant()
     entry = SimpleNamespace(options={}, entry_id="entry-3")

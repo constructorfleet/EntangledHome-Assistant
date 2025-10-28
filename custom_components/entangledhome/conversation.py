@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
 import hashlib
 import inspect
 import json
 import logging
-from typing import Any, Awaitable, Callable, Iterable, Mapping
 import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Awaitable, Callable, Iterable, Mapping
 
 from homeassistant.components import conversation as conversation_domain
 from homeassistant.config_entries import ConfigEntry
@@ -29,24 +29,23 @@ from .const import (
     DOMAIN,
     OPT_ADAPTER_SHARED_SECRET,
     OPT_ALLOWED_HOURS,
-    OPT_DANGEROUS_INTENTS,
-    OPT_DISABLED_INTENTS,
-    OPT_INTENT_THRESHOLDS,
-    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_CONFIDENCE_THRESHOLD,
+    OPT_DANGEROUS_INTENTS,
     OPT_DEDUPLICATION_WINDOW,
+    OPT_DISABLED_INTENTS,
     OPT_ENABLE_CONFIDENCE_GATE,
+    OPT_INTENT_THRESHOLDS,
     OPT_MAX_LATENCY_MS,
     OPT_NIGHT_MODE_ENABLED,
     OPT_NIGHT_MODE_END_HOUR,
     OPT_NIGHT_MODE_START_HOUR,
+    OPT_RECENT_COMMAND_WINDOW_OVERRIDES,
     OPT_REQUIRE_VERIFIED_USER_FOR_DANGEROUS,
     OPT_VERIFIED_USERS,
 )
 from .intent_handlers import IntentHandlingError, async_execute_intent
 from .models import CatalogPayload, InterpretResponse
 from .telemetry import TelemetryRecorder
-
 
 CatalogProvider = Callable[[], CatalogPayload | Awaitable[CatalogPayload]]
 
