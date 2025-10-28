@@ -88,6 +88,43 @@ async def test_adapter_client_accepts_signed_response() -> None:
     assert result.params == {"level": 50}
 
 
+async def test_adapter_client_accepts_signed_response_with_whitespace() -> None:
+    """Response signatures should be resilient to stray whitespace."""
+
+    secret = "shared-secret"
+
+    response_payload = {
+        "intent": "lights_on",
+        "area": "hallway",
+        "params": {"level": 10},
+        "confidence": 0.5,
+        "sensitive": False,
+        "required_secondary_signals": [],
+    }
+    body = json.dumps(response_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Entangled-Signature": f"  {signature}\n",
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AdapterClient("https://adapter.invalid/interpret", client=http_client)
+        client._shared_secret = secret  # type: ignore[attr-defined]
+        result = await client.interpret("dim the hallway", CatalogPayload())
+
+    assert result.intent == "lights_on"
+    assert result.area == "hallway"
+    assert result.params == {"level": 10}
+
+
 async def test_adapter_client_returns_noop_when_response_signature_missing(caplog) -> None:
     """Missing signatures should downgrade to noop responses."""
 

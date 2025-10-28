@@ -196,20 +196,21 @@ class AdapterClient:
             adapter_error=adapter_error,
         )
 
-    def _validate_response_signature(
-        self, response: httpx.Response, body: bytes
-    ) -> str | None:
+    def _validate_response_signature(self, response: httpx.Response, body: bytes) -> str | None:
         if not self._shared_secret:
             return None
         provided_signature = response.headers.get(SIGNATURE_HEADER)
         if not provided_signature:
+            return "Adapter response signature missing"
+        normalized_signature = provided_signature.strip()
+        if not normalized_signature:
             return "Adapter response signature missing"
         expected_signature = hmac.new(
             self._shared_secret.encode("utf-8"),
             body,
             hashlib.sha256,
         ).hexdigest()
-        if not hmac.compare_digest(provided_signature, expected_signature):
+        if not hmac.compare_digest(normalized_signature, expected_signature):
             return "Adapter response signature invalid"
         return None
 
