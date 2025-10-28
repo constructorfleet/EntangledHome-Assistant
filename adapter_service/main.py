@@ -14,6 +14,7 @@ from typing import Any, AsyncIterator, Callable, Final, Mapping, Sequence
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from jsonschema import Draft7Validator, ValidationError
 from pydantic import ValidationError as PydanticValidationError
 from starlette import status
@@ -703,7 +704,16 @@ async def interpret(request: Request, payload: InterpretRequest) -> InterpretRes
         final_payload,
     )
 
-    return latest_response
+    response = JSONResponse(content=final_payload)
+    if SETTINGS.shared_secret:
+        body_bytes = response.body
+        signature = hmac.new(
+            SETTINGS.shared_secret.encode("utf-8"),
+            body_bytes,
+            hashlib.sha256,
+        ).hexdigest()
+        response.headers[SIGNATURE_HEADER] = signature
+    return response
 
 
 def _enforce_signature(body: bytes, provided: str | None) -> None:

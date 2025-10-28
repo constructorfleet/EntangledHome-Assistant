@@ -108,6 +108,22 @@ class AdapterClient:
             if close_client:
                 await client.aclose()
 
+        body_bytes = response.content
+        signature_error = self._validate_response_signature(response, body_bytes)
+
+        if signature_error is not None:
+            self._log_failure(
+                utterance,
+                fingerprint,
+                error=signature_error,
+            )
+            return self._failure_response(
+                utterance,
+                fingerprint,
+                reason=signature_error,
+                adapter_error=signature_error,
+            )
+
         data: Any
         try:
             data = response.json()
@@ -179,6 +195,23 @@ class AdapterClient:
             confidence=0.0,
             adapter_error=adapter_error,
         )
+
+    def _validate_response_signature(
+        self, response: httpx.Response, body: bytes
+    ) -> str | None:
+        if not self._shared_secret:
+            return None
+        provided_signature = response.headers.get(SIGNATURE_HEADER)
+        if not provided_signature:
+            return "Adapter response signature missing"
+        expected_signature = hmac.new(
+            self._shared_secret.encode("utf-8"),
+            body,
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(provided_signature, expected_signature):
+            return "Adapter response signature invalid"
+        return None
 
     @staticmethod
     def _log_failure(

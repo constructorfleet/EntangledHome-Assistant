@@ -183,6 +183,12 @@ def test_interpret_endpoint_returns_valid_response(monkeypatch, qdrant_payloads)
     response = _post_with_signature(client, request_payload.model_dump(mode="json"), SHARED_SECRET)
 
     assert response.status_code == 200
+    expected_signature = hmac.new(
+        SHARED_SECRET.encode("utf-8"),
+        response.content,
+        hashlib.sha256,
+    ).hexdigest()
+    assert response.headers.get("X-Entangled-Signature") == expected_signature
 
     body = InterpretResponse.model_validate(response.json())
     assert body.intent == "noop"
