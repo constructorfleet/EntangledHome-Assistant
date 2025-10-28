@@ -88,6 +88,13 @@ GUARDRAIL_DESCRIPTION_FIELDS = {
     const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS,
 }
 
+SECONDARY_DISABLED_OVERRIDES = {
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: False,
+    const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: [],
+    const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED: False,
+    const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 30.0,
+}
+
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -111,6 +118,11 @@ def _build_user_input(**overrides: object) -> dict[str, object]:
     )
     base.update(overrides)
     return base
+
+
+def _config_flow_alias() -> type:
+    assert hasattr(config_flow_module, "ConfigFlow"), "ConfigFlow alias should be exported"
+    return getattr(config_flow_module, "ConfigFlow")
 
 
 async def _async_run_user_step(**overrides: object) -> dict[str, object]:
@@ -184,23 +196,32 @@ def test_user_flow_populates_secondary_signal_options() -> None:
 def test_async_step_user_creates_entry() -> None:
     """The config flow should return a create_entry result."""
 
-    overrides = {
-        const.OPT_SECONDARY_SIGNAL_PRESENCE_ENABLED: False,
-        const.OPT_SECONDARY_SIGNAL_PRESENCE_ENTITIES: [],
-        const.OPT_SECONDARY_SIGNAL_VOICE_ENABLED: False,
-        const.OPT_SECONDARY_SIGNAL_VOICE_TTL_SECONDS: 30.0,
-    }
-    user_input = _build_user_input(**overrides)
-    result = asyncio.run(_async_run_user_step(**overrides))
+    user_input = _build_user_input(**SECONDARY_DISABLED_OVERRIDES)
+    result = asyncio.run(_async_run_user_step(**SECONDARY_DISABLED_OVERRIDES))
 
     assert result["type"] == "create_entry"
     assert result["data"][const.CONF_ADAPTER_URL] == user_input[const.CONF_ADAPTER_URL]
 
 
+def test_async_step_user_returns_sync_flow_result() -> None:
+    """Flow results should be realized dictionaries, not bare coroutines."""
+
+    result = asyncio.run(_async_run_user_step(**SECONDARY_DISABLED_OVERRIDES))
+
+    assert not inspect.isawaitable(result)
+    assert isinstance(result, dict)
+    assert result["type"] == "create_entry"
+
+
 def test_config_flow_module_exports_configflow_alias() -> None:
     """Home Assistant expects the module to export ConfigFlow."""
 
-    assert hasattr(config_flow_module, "ConfigFlow"), "ConfigFlow alias should be exported"
-    assert config_flow_module.ConfigFlow is config_flow_module.ConfigFlowHandler, (
+    assert _config_flow_alias() is config_flow_module.ConfigFlowHandler, (
         "ConfigFlow should reference ConfigFlowHandler"
     )
+
+
+def test_config_flow_alias_exposes_domain_constant() -> None:
+    """The ConfigFlow alias should expose the integration domain."""
+
+    assert _config_flow_alias().domain == const.DOMAIN

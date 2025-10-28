@@ -321,12 +321,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         for option_key, _default, _validator in GUARDRAIL_COMPLEX_OPTION_FIELDS:
             options[option_key] = user_input[option_key]
 
-        return self.async_create_entry(title=TITLE, data=data, options=options)
+        return await self.async_create_entry(title=TITLE, data=data, options=options)
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry) -> config_entries.ConfigFlow:
         return OptionsFlowHandler(config_entry)
+
+
+ConfigFlow = ConfigFlowHandler
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
@@ -466,5 +469,3 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 return [str(item).strip() for item in parsed if str(item).strip()]
             return [str(item).strip() for item in value] if value else []
         return value
-
-
